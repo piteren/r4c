@@ -2,7 +2,7 @@
 
 ------------
 
-Simple Reinforcement algorithms implementation, PyTorch based.
+some Reinforcement algorithms implementation, PyTorch based.
 
 ------------
 
