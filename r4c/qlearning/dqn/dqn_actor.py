@@ -1,10 +1,10 @@
 from abc import ABC
 import numpy as np
 from torchness.motorch import MOTorch, Module
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
+from r4c.helpers import RLException, extract_from_batch
 from r4c.qlearning.ql_actor import QLearningActor
-from r4c.helpers import RLException
 from r4c.qlearning.dqn.dqn_actor_module import DQNModel
 
 
@@ -61,10 +61,13 @@ class DQNActor(QLearningActor, ABC):
     # optimized with single call to session with a batch of data
     def update_with_experience(
             self,
-            observations: List[object],
-            actions: List[int],
-            new_qvs: List[float],
-            inspect=    False) -> dict:
+            batch: List[Dict[str, Any]],
+            inspect: bool,
+    ) -> Dict[str, Any]:
+
+        observations =  extract_from_batch(batch, 'observation')
+        actions =       extract_from_batch(batch, 'action')
+        new_qvs =       extract_from_batch(batch, 'new_qvs')
 
         obs_vecs = self._get_observation_vec_batch(observations)
         full_qvs = np.zeros_like(obs_vecs)

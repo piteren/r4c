@@ -33,8 +33,8 @@ class A2CActor(PGActor):
             two_dim_multi(
                 ys=     [
                     extract_from_batch(batch, 'dreturn'),
-                    actor_metrics.pop('value'),
-                    actor_metrics.pop('advantage'),
+                    actor_metrics.pop('value').detach().cpu().numpy(),
+                    actor_metrics.pop('advantage').detach().cpu().numpy(),
                 ],
                 names=  [
                     'dreturns',

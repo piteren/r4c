@@ -64,9 +64,9 @@ class QLearningActor(TrainableActor, ABC):
 
         loss = 0.0
 
-        observations = extract_from_batch(batch, 'observation')
-        actions = extract_from_batch(batch, 'action')
-        new_qvs = extract_from_batch(batch, 'new_qvs')
+        observations =  extract_from_batch(batch, 'observation')
+        actions =       extract_from_batch(batch, 'action')
+        new_qvs =       extract_from_batch(batch, 'new_qvs')
 
         for ob, ac, nq in zip(observations, actions, new_qvs):
             loss += self._upd_QV(
