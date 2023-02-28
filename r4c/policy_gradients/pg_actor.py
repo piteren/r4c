@@ -1,12 +1,13 @@
 from abc import ABC
 import numpy as np
+from torchness.motorch import MOTorch, Module
 from typing import Optional, List, Dict, Any
 
 from r4c.helpers import extract_from_batch
 from r4c.actor import TrainableActor
 from r4c.envy import FiniteActionsRLEnvy
 from r4c.policy_gradients.pg_actor_module import PGActorModule
-from pypaq.torchness.motorch import MOTorch, Module
+
 
 # TODO: implement parallel training, in batches (many envys)
 

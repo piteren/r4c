@@ -1,7 +1,7 @@
 import numpy as np
+from torchness.motorch import Module
 from typing import Optional, List, Dict, Any
 
-from pypaq.torchness.motorch import Module
 from r4c.helpers import extract_from_batch
 from r4c.policy_gradients.pg_actor import PGActor
 from r4c.policy_gradients.actor_critic.ac_critic_module import ACCriticModule

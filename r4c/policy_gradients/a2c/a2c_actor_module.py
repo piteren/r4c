@@ -1,10 +1,10 @@
 import torch
+from torchness.types import TNS, DTNS
+from torchness.motorch import Module
+from torchness.layers import LayDense, zeroes
+from torchness.base_elements import scaled_cross_entropy
 from typing import Optional
 
-from pypaq.torchness.types import TNS, DTNS
-from pypaq.torchness.motorch import Module
-from pypaq.torchness.layers import LayDense, zeroes
-from pypaq.torchness.base_elements import scaled_cross_entropy
 
 
 class A2CModule(Module):

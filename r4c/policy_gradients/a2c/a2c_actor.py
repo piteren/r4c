@@ -1,10 +1,10 @@
+from pypaq.lipytools.plots import two_dim_multi
+from torchness.motorch import Module
 from typing import Optional, List, Dict, Any
 
-from pypaq.lipytools.plots import two_dim_multi
 from r4c.helpers import extract_from_batch
 from r4c.policy_gradients.pg_actor import PGActor
 from r4c.policy_gradients.a2c.a2c_actor_module import A2CModule
-from pypaq.torchness.motorch import Module
 
 
 

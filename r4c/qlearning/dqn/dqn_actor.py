@@ -1,18 +1,10 @@
-"""
-
- 2022 (c) piteren
-
-    DQN_Actor - Deep QLearningActor NN based
-
-"""
-
 from abc import ABC
 import numpy as np
+from torchness.motorch import MOTorch, Module
 from typing import Optional, List
 
 from r4c.qlearning.ql_actor import QLearningActor
 from r4c.helpers import RLException
-from pypaq.torchness.motorch import MOTorch, Module
 from r4c.qlearning.dqn.dqn_actor_module import DQNModel
 
 

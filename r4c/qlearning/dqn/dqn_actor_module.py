@@ -1,16 +1,7 @@
-"""
-
- 2022 (c) piteren
-
-    baseline DQN Module for MOTorch (PyTorch)
-
-"""
-
 import torch
-from typing import Dict
+from torchness.motorch import Module
+from torchness.layers import LayDense
 
-from pypaq.torchness.motorch import Module
-from pypaq.torchness.layers import LayDense
 
 
 class DQNModel(Module):

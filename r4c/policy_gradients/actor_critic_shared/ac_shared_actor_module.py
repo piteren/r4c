@@ -1,9 +1,8 @@
 import torch
-
-from pypaq.torchness.motorch import Module
-from pypaq.torchness.types import TNS, DTNS
-from pypaq.torchness.layers import LayDense, zeroes
-from pypaq.torchness.base_elements import scaled_cross_entropy
+from torchness.motorch import Module
+from torchness.types import TNS, DTNS
+from torchness.layers import LayDense, zeroes
+from torchness.base_elements import scaled_cross_entropy
 
 
 # baseline AC Shared Actor Module

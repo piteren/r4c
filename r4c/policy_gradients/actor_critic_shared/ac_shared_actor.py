@@ -1,8 +1,7 @@
 from abc import ABC
-
+from torchness.motorch import Module
 from typing import Optional, List, Dict, Any
 
-from pypaq.torchness.motorch import Module
 from r4c.helpers import extract_from_batch
 from r4c.policy_gradients.pg_actor import PGActor
 from r4c.policy_gradients.actor_critic_shared.ac_shared_actor_module import ACSharedActorModule

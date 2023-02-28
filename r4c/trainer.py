@@ -3,11 +3,11 @@ from collections import deque
 import numpy as np
 from pypaq.lipytools.pylogger import get_pylogger
 from pypaq.lipytools.moving_average import MovAvg
-from pypaq.torchness.tbwr import TBwr
-from pypaq.torchness.comoneural.avg_probs import avg_probs
-from pypaq.torchness.comoneural.zeroes_processor import ZeroesProcessor
 import random
 import time
+from torchness.tbwr import TBwr
+from torchness.comoneural.avg_probs import avg_probs
+from torchness.comoneural.zeroes_processor import ZeroesProcessor
 from typing import List, Tuple, Optional, Dict, Any
 
 from r4c.envy import RLEnvy, FiniteActionsRLEnvy
