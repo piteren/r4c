@@ -57,7 +57,7 @@ class TrainableActor(Actor, ABC):
             inspect: bool,
     ) -> Dict[str,Any]:
         """
-        updates (self) policy with batch of experience data given with kwargs
+        updates (self) policy with 'batch' of experience data
         returns dict with some update "metrics" like a loss etc.
         those metrics may be used by RLTrainer for publish, monitoring, training process update..
         currently supported:

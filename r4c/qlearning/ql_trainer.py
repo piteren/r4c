@@ -1,11 +1,3 @@
-"""
-
- 2022 (c) piteren
-
-    QLearningTrainer for QLearningActor acting on FiniteActionsRLEnvy.
-
-"""
-
 import numpy as np
 
 from r4c.helpers import extract_from_batch
@@ -13,7 +5,7 @@ from r4c.trainer import FATrainer
 from r4c.qlearning.ql_actor import QLearningActor
 
 
-# Q-Learning Trainer
+# Q-Learning Trainer for QLearningActor acting on FiniteActionsRLEnvy
 class QLearningTrainer(FATrainer):
 
     def __init__(

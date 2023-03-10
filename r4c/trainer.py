@@ -36,8 +36,10 @@ class ExperienceMemory:
     def get_all(self) -> List[Dict[str,Any]]:
         return list(self.memory)
 
+
     def clear(self):
         self.memory.clear()
+
 
     def __len__(self):
         return len(self.memory)
@@ -130,11 +132,11 @@ class RLTrainer(ABC):
             sampled: float,
             render: bool
     ) -> Tuple[
-        List[object],   # observation
-        List[object],   # action
-        List[float],    # reward
-        List[bool],     # terminal
-        List[bool]]:    # won
+        List[object],   # observations
+        List[object],   # actions
+        List[float],    # rewards
+        List[bool],     # terminals
+        List[bool]]:    # wons
 
         self._rlog.log(5,f'playing for {steps} steps..')
 
@@ -174,7 +176,11 @@ class RLTrainer(ABC):
             sampled: float,
             render: bool,
             max_steps: Optional[int]=   None,  # if max steps is given then single play for max_steps is considered to be won
-    ) -> Tuple[List[object], List[object], List[float], bool]:
+    ) -> Tuple[
+        List[object],   # observations
+        List[object],   # actions
+        List[float],    # rewards
+        bool]:          # won
 
         if max_steps is None and self.envy.get_max_steps() is None:
             raise RLException('Cannot play episode for Envy where max_steps is None and given max_steps is also None')
@@ -240,19 +246,20 @@ class RLTrainer(ABC):
         for uix in range(num_updates):
 
             # get a batch of data
-            new_actions = 0
-            while new_actions < self.batch_size:
+            n_batch_actions = 0
+            while n_batch_actions < self.batch_size:
 
                 observations, actions, rewards, terminals, wons = self.play(
-                    steps=          self.batch_size - new_actions,
+                    steps=          self.batch_size - n_batch_actions,
                     reset=          False,
                     break_terminal= True,
                     exploration=    self.exploration,
                     sampled=        self.train_sampled,
                     render=         False)
 
-                new_actions += len(actions)
-                n_actions += len(actions)
+                na = len(actions)
+                n_batch_actions += na
+                n_actions += na
 
                 next_observations = observations[1:] + [self.envy.get_observation()]
 
@@ -261,11 +268,11 @@ class RLTrainer(ABC):
                     self.memory.append(dict(observation=o, action=a, reward=r, next_observation=n, terminal=t))
 
                 if terminals[-1]:
-                    n_terminals += 1 # ..may not be terminal when limit of new_actions reached
+                    n_terminals += 1 # ..may not be terminal when limit of n_batch_actions reached
                 if wons[-1]:
                     n_won += 1
 
-                self._rlog.debug(f' >> Trainer gots {len(observations):3} observations after play and {len(self.memory):3} in memory, new_actions: {new_actions}' )
+                self._rlog.debug(f' >> Trainer gots {len(observations):3} observations after play and {len(self.memory):3} in memory, n_batch_actions: {n_batch_actions}' )
 
                 if upd_on_episode: break
 

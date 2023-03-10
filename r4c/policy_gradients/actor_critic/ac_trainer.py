@@ -1,13 +1,3 @@
-"""
-
- 2022 (c) piteren
-
-    RL Trainer for Actor & Critic acting on RLEnvy
-
-        Implements Actor & Critic update
-
-"""
-
 import numpy as np
 
 from r4c.helpers import extract_from_batch
@@ -16,6 +6,7 @@ from r4c.policy_gradients.actor_critic.ac_critic import ACCritic
 from r4c.policy_gradients.pg_trainer import PGTrainer
 
 
+# RL Trainer for Actor & Critic acting on RLEnvy, implements Actor & Critic update
 class ACTrainer(PGTrainer):
 
     def __init__(
