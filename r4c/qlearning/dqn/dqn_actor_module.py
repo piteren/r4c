@@ -1,6 +1,8 @@
 import torch
+from torchness.types import TNS, DTNS
 from torchness.motorch import Module
 from torchness.layers import LayDense
+from typing import Optional
 
 
 
@@ -37,29 +39,29 @@ class DQNModel(Module):
             out_features=   num_actions,
             activation=     None)
 
+        # TODO: try with Hubner
         self.loss_fn = torch.nn.MSELoss(reduction='none')
 
-    def forward(self, obs) -> dict:
-        out = self.ln(obs)
+
+    def forward(self, observations:TNS) -> DTNS:
+        out = self.ln(observations)
         for lin,ln in zip(self.linL,self.lnL):
             out = lin(out)
             out = ln(out)
         logits = self.logits(out)
         return {'logits': logits}
 
-    def accuracy(
-            self,
-            logits: torch.Tensor,
-            labels: torch.Tensor) -> float:
-        # no good accuracy for this model
-        return 0.0
 
-    def loss(self, obs, lbl, mask=None) -> dict:
-        out = self(obs)
-        logits = out['logits']
-        loss = self.loss_fn(logits, lbl)
-        if mask is not None: loss *= mask       # mask
+    def loss(
+            self,
+            observations: TNS,
+            labels: TNS,
+            mask: Optional[TNS]=    None
+    ) -> DTNS:
+        out = self(observations)
+        loss = self.loss_fn(out['logits'], labels)
+        if mask is not None:
+            loss *= mask                        # mask
         loss = torch.sum(loss, dim=-1)          # reduce over samples
         out['loss'] = torch.mean(loss)          # average
-        out['acc'] = self.accuracy(logits, lbl)
         return out

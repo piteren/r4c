@@ -27,7 +27,7 @@ class ACCritic(PGActor):
 
     # TODO: what about shape, does it work?
     def get_qvs(self, observation) -> np.ndarray:
-        obs_vec = self._get_observation_vec(observation)
+        obs_vec = self.get_observation_vec(observation)
         out = self.model(obs_vec)
         return out['qvs'].detach().cpu().numpy()
 

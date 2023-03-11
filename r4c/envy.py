@@ -3,7 +3,7 @@ import numpy as np
 from typing import List, Tuple, Optional
 
 from pypaq.lipytools.pylogger import get_pylogger
-from r4c.helpers import RLException
+from r4c.helpers import RLException, NUM
 
 
 
@@ -23,7 +23,7 @@ class Envy(ABC):
 
     # plays action, goes to new state
     @abstractmethod
-    def run(self, action: object) -> None: pass
+    def run(self, action:object) -> None: pass
 
     # returns observation of current state
     @abstractmethod
@@ -31,7 +31,7 @@ class Envy(ABC):
 
     # resets Envy (self) to initial state with given seed
     @abstractmethod
-    def _reset_with_seed(self, seed: int): pass
+    def _reset_with_seed(self, seed:int): pass
 
     # resets Envy (self) to initial state
     def reset(self):
@@ -46,7 +46,7 @@ class Envy(ABC):
 # adds to Envy methods needed by base RL algorithms (used by Actor or Trainer)
 class RLEnvy(Envy, ABC):
 
-    def run(self, action: object) -> Tuple[
+    def run(self, action:NUM) -> Tuple[
         float,  # reward
         bool,   # is terminal
         bool    # has won
@@ -62,8 +62,12 @@ class RLEnvy(Envy, ABC):
     # Envy current state rendering (for debug, preview etc.)
     def render(self): pass
 
-    # prepares numpy vector from observation, it may be implemented by RLEnvy, but is not mandatory, otherwise Actor should implement on itself
-    def prep_observation_vec(self, observation: object) -> np.ndarray:
+    # prepares numpy vector from observation
+    def prep_observation_vec(self, observation:object) -> np.ndarray:
+        """
+        it may be implemented by RLEnvy, but is not mandatory
+        otherwise Actor should implement on itself since it is in fact Actor duty
+        """
         raise RLException('RLEnvy not implemented prep_observation_vec()')
 
 

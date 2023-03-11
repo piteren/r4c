@@ -20,19 +20,19 @@ from r4c.helpers import RLException
 
 class QTable:
 
-    def __init__(self, width: int):
+    def __init__(self, width:int):
         self.__width = width
         self.__table: Dict[Hashable, np.ndarray] = {}  # {observation_hash: QVs}
         self.__keys: List[np.ndarray] = []
 
     @staticmethod
-    def __hash(observation: np.ndarray) -> str:
+    def __hash(observation:np.ndarray) -> str:
         return str(observation)
 
-    def __init_hash(self, ha: str):
+    def __init_hash(self, ha:str):
         self.__table[ha] = np.zeros(self.__width, dtype=float)
 
-    def get_QVs(self, observation: np.ndarray) -> np.ndarray:
+    def get_QVs(self, observation:np.ndarray) -> np.ndarray:
         ha = QTable.__hash(observation)
         if ha not in self.__table:
             self.__init_hash(ha)
@@ -76,20 +76,19 @@ class QTableActor(QLearningActor):
         self._update_rate = update_rate
         self._rlog.info(f'> QTableActor set update_rate to: {self._update_rate}')
 
-    def _get_QVs(self, observation: object) -> np.ndarray:
-        obs_vec = self._get_observation_vec(observation)
-        return self.__qtable.get_QVs(obs_vec)
+    def _get_QVs(self, observation:np.ndarray) -> np.ndarray:
+        return self.__qtable.get_QVs(observation)
 
     def _upd_QV(
             self,
-            observation: object,
+            observation: np.ndarray,
             action: int,
             new_qv: float) -> float:
         if self._update_rate is None: raise RLException('Trainer needs to set update_rate of QLearningActor before training!')
         old_qv = self._get_QVs(observation)[action]
         diff = new_qv - old_qv
         self.__qtable.put_QV(
-            observation=    self._get_observation_vec(observation),
+            observation=    observation,
             action=         action,
             new_qv=         old_qv + self._update_rate * diff)
         return abs(diff)

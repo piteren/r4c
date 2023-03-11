@@ -34,7 +34,7 @@ class PGActor(TrainableActor, ABC):
         # some overrides and updates
         if 'logger' in kwargs: kwargs.pop('logger')     # NNWrap will always create own logger (since then it is not given) with optionally given level
         kwargs['num_actions'] = self._envy.num_actions()
-        kwargs['observation_width'] = self._get_observation_vec(self._envy.get_observation()).shape[-1]
+        kwargs['observation_width'] = self.get_observation_vec(self._envy.get_observation()).shape[-1]
 
         self.model = MOTorch(
             module_type=    module_type,
@@ -46,10 +46,10 @@ class PGActor(TrainableActor, ABC):
 
     # vectorization of observations batch, may be overridden with more optimal custom implementation
     def _get_observation_vec_batch(self, observations: List[object]) -> np.ndarray:
-        return np.asarray([self._get_observation_vec(v) for v in observations])
+        return np.asarray([self.get_observation_vec(v) for v in observations])
 
     def get_policy_probs(self, observation: object) -> np.ndarray:
-        obs_vec = self._get_observation_vec(observation)
+        obs_vec = self.get_observation_vec(observation)
         return self.model(obs_vec)['probs'].detach().cpu().numpy()
 
     # batch call to NN

@@ -1,48 +1,75 @@
 from abc import abstractmethod, ABC
-from collections import deque
 import numpy as np
 from pypaq.lipytools.pylogger import get_pylogger
 from pypaq.lipytools.moving_average import MovAvg
-import random
 import time
 from torchness.tbwr import TBwr
-from torchness.comoneural.avg_probs import avg_probs
+from torchness.comoneural.avg_probs import avg_mm_probs
 from torchness.comoneural.zeroes_processor import ZeroesProcessor
-from typing import List, Tuple, Optional, Dict, Any
+from typing import List, Tuple, Optional, Dict, Any, Union
 
 from r4c.envy import RLEnvy, FiniteActionsRLEnvy
 from r4c.actor import TrainableActor
-from r4c.helpers import RLException
+from r4c.helpers import RLException, NUM
 
 
-# Trainer Experience Memory (deque od dicts)
+# Trainer Experience Memory
 class ExperienceMemory:
 
     def __init__(
             self,
-            maxsize: int,
+            max_size: Optional[int],
             seed: int):
-        self.memory = deque(maxlen=maxsize)
-        random.seed(seed)
+        self._mem: Dict[str,np.ndarray] = {}
+        self._init_mem()
+        self.max_size = max_size
+        np.random.seed(seed)
 
-    def append(self, element:Dict[str,Any]):
-        self.memory.append(element)
+
+    def _init_mem(self):
+        self._mem = {
+            'observations':         None, # np.ndarray of floats (2 dim)
+            'actions':              None, # np.ndarray of ints
+            'rewards':              None, # np.ndarray of floats
+            'next_observations':    None, # np.ndarray of floats (2 dim)
+            'terminals':            None, # np.ndarray of bool
+            'wons':                 None} # np.ndarray of bool
+
+    # adds given experience
+    def add(self, experience:Dict[str, Union[List,np.ndarray]]):
+
+        # add or put
+        for k in experience:
+            ex_np = np.asarray(experience[k])
+            if self._mem[k] is None:
+                self._mem[k] = ex_np
+            else:
+                self._mem[k] = np.concatenate([self._mem[k], ex_np])
+
+        # trim if needed
+        if self.max_size and len(self) > self.max_size:
+            for k in self._mem:
+                self._mem[k] = self._mem[k][:self.max_size]
 
     # returns random sample of non-duplicates from memory
-    def sample(self, n:int) -> List[Dict[str,Any]]:
-        return random.sample(self.memory, n)
+    def get_sample(self, n:int) -> Dict[str,np.ndarray]:
+        ixs = np.random.choice(len(self), n, replace=False)
+        return {k: self._mem[k][ixs] for k in self._mem}
 
-    # returns all elements from memory in original order
-    def get_all(self) -> List[Dict[str,Any]]:
-        return list(self.memory)
+
+    # returns (copy) of full memory
+    def get_all(self, reset=True) -> Dict[str,np.ndarray]:
+        mc = {k: np.copy(self._mem[k]) for k in self._mem}
+        if reset: self._init_mem()
+        return mc
 
 
     def clear(self):
-        self.memory.clear()
+        self._init_mem()
 
 
     def __len__(self):
-        return len(self.memory)
+        return len(self._mem['observations']) if self._mem['observations'] is not None else 0
 
 
 # Reinforcement Learning Trainer for Actor acting on RLEnvy
@@ -57,29 +84,29 @@ class RLTrainer(ABC):
             self,
             envy: RLEnvy,
             actor: TrainableActor,
-            batch_size: int,        # Actor update batch data size
-            memsize_batches: int,   # ExperienceMemory size (in number of batches)
-            exploration: float,     # train exploration factor
-            train_sampled: float,   # how often move is sampled (vs argmax) while training
-            seed: int=          123,
-            logger=             None,
-            loglevel=           20,
-            hpmser_mode=        False):
+            batch_size: int,                    # Actor update batch data size
+            exploration: float,                 # train exploration factor
+            train_sampled: float,               # how often move is sampled (vs argmax) while training
+            mem_batches: Optional[int]= None,   # ExperienceMemory max size (in number of batches)
+            seed: int=                  123,
+            logger=                     None,
+            loglevel=                   20,
+            hpmser_mode=                False):
 
         self._rlog = logger or get_pylogger(level=loglevel)
         self._rlog.info(f'*** RLTrainer *** initializes..')
-        self._rlog.info(f'> Envy:          {envy.__class__.__name__}')
-        self._rlog.info(f'> Actor:         {actor.__class__.__name__}, name: {actor.name}')
-        self._rlog.info(f'> batch_size:    {batch_size}')
-        self._rlog.info(f'> memory size:   {batch_size*memsize_batches}')
-        self._rlog.info(f'> exploration:   {exploration}')
-        self._rlog.info(f'> train_sampled: {train_sampled}')
-        self._rlog.info(f'> seed:          {seed}')
+        self._rlog.info(f'> Envy:            {envy.__class__.__name__}')
+        self._rlog.info(f'> Actor:           {actor.__class__.__name__}, name: {actor.name}')
+        self._rlog.info(f'> batch_size:      {batch_size}')
+        self._rlog.info(f'> memory max size: {batch_size*mem_batches if mem_batches else "None"}')
+        self._rlog.info(f'> exploration:     {exploration}')
+        self._rlog.info(f'> train_sampled:   {train_sampled}')
+        self._rlog.info(f'> seed:            {seed}')
 
         self.envy = envy
         self.actor = actor
         self.batch_size = batch_size
-        self.memsize = self.batch_size * memsize_batches
+        self.mem_max_size = self.batch_size * mem_batches if mem_batches else None
         self.exploration = exploration
         self.train_sampled = train_sampled
         self.memory: Optional[ExperienceMemory] = None
@@ -94,35 +121,7 @@ class RLTrainer(ABC):
             intervals=  (10,50,100),
             tbwr=       self._tbwr) if not self.hpmser_mode else None
 
-    # updates Actor policy, returns dict with Actor "metrics" (check Actor.update_with_experience())
-    def _update_actor(self, inspect:bool=False) -> Dict[str,Any]:
-        batch = self.memory.sample(self.batch_size)
-        return self.actor.update_with_experience(
-            batch=      batch,
-            inspect=    inspect)
-
-    # trainer selects exploring action (with Trainer exploratory policy)
-    @abstractmethod
-    def _get_exploring_action(self) -> object: pass
-
-    # performs one Actor move (action)
-    def _ex_move(
-            self,
-            exploration=    0.0,    # prob pf exploration
-            sampled=        0.0     # prob of sampling (vs argmax)
-    ) -> Tuple[object,object,float,bool,bool]:
-
-        pre_action_observation = self.envy.get_observation()
-
-        if np.random.rand() < exploration: action = self._get_exploring_action()
-        else:                              action = self.actor.get_policy_action(
-                                                        observation=    pre_action_observation,
-                                                        sampled=        np.random.rand() < sampled)
-        reward, is_terminal, won = self.envy.run(action)
-
-        return pre_action_observation, action, reward, is_terminal, won
-
-    # plays (envy) until N steps performed or terminal state
+    # plays (envy) until N steps performed or terminal state, collects and returns experience
     def play(
             self,
             reset: bool,            # for True starts play from the initial state
@@ -132,11 +131,11 @@ class RLTrainer(ABC):
             sampled: float,
             render: bool
     ) -> Tuple[
-        List[object],   # observations
-        List[object],   # actions
-        List[float],    # rewards
-        List[bool],     # terminals
-        List[bool]]:    # wons
+            List[np.ndarray],   # observations
+            List[NUM],          # actions
+            List[float],        # rewards
+            List[bool],         # terminals
+            List[bool]]:        # wons
 
         self._rlog.log(5,f'playing for {steps} steps..')
 
@@ -150,7 +149,7 @@ class RLTrainer(ABC):
 
         while len(actions) < steps:
 
-            observation, action, reward, is_terminal, won = self._ex_move(
+            observation, action, reward, is_terminal, won = self._exploratory_move(
                 exploration=    exploration,
                 sampled=        sampled)
 
@@ -177,23 +176,186 @@ class RLTrainer(ABC):
             render: bool,
             max_steps: Optional[int]=   None,  # if max steps is given then single play for max_steps is considered to be won
     ) -> Tuple[
-        List[object],   # observations
-        List[object],   # actions
-        List[float],    # rewards
-        bool]:          # won
+        List[np.ndarray],   # observations
+        List[NUM],          # actions
+        List[float],        # rewards
+        bool]:              # won
 
         if max_steps is None and self.envy.get_max_steps() is None:
-            raise RLException('Cannot play episode for Envy where max_steps is None and given max_steps is also None')
+            raise RLException('Cannot play episode for Envy where max_steps is None and given max_steps is None')
 
         observations, actions, rewards, terminals, wons = self.play(
-            steps=          max_steps or self.envy.get_max_steps(),
             reset=          True,
+            steps=          max_steps or self.envy.get_max_steps(),
             break_terminal= True,
             exploration=    exploration,
             sampled=        sampled,
             render=         render)
 
         return observations, actions, rewards, wons[-1]
+
+    # performs one Actor move (action)
+    def _exploratory_move(
+            self,
+            exploration=    0.0, # prob pf exploration
+            sampled=        0.0, # prob of sampling (vs argmax)
+    ) -> Tuple[np.ndarray,NUM,float,bool,bool]:
+
+        pre_action_observation = self.envy.get_observation()
+        observation_vec = self.actor.get_observation_vec(pre_action_observation)
+
+        if np.random.rand() < exploration: action = self._get_exploring_action()
+        else:                              action = self.actor.get_policy_action(
+                                                        observation=    observation_vec,
+                                                        sampled=        np.random.rand() < sampled)
+        reward, is_terminal, won = self.envy.run(action)
+
+        return observation_vec, action, reward, is_terminal, won
+
+    # trainer selects exploring action (with Trainer exploratory policy)
+    @abstractmethod
+    def _get_exploring_action(self) -> NUM: pass
+
+    # generic RL training procedure, returns dict with some training stats
+    def train(
+            self,
+            num_updates: int,                       # number of training updates
+            upd_on_episode=                 False,  # updates on episode finish / terminal (does not wait till batch)
+            test_freq=                      100,    # number of updates between test
+            test_episodes: int=             100,    # number of testing episodes
+            test_max_steps: Optional[int]=  None,   # max number of episode steps while testing
+            test_render: bool=              False,  # renders one episode while test
+            inspect: bool=                  False,  # for debug / research
+            break_ntests: Optional[int]=    None,   # breaks training after all test episodes succeeded N times in a row
+    ) -> dict:
+
+        stime = time.time()
+        self._rlog.info(f'Starting train for {num_updates} updates..')
+
+        self.memory = ExperienceMemory(
+            max_size=   self.mem_max_size,
+            seed=       self.seed)
+        self._rlog.info(f'> initialized ExperienceMemory of maxsize {self.mem_max_size}')
+
+        self.envy.reset()
+        loss_mavg = MovAvg()
+        lossL = []
+        n_actions = 0               # total number of train actions
+        n_terminals = 0             # number of terminal states reached while training
+        last_terminals = 0          # previous number of terminal states
+        n_won = 0                   # number of wins while training
+        succeeded_row_curr = 0      # current number of succeeded tests in a row
+        succeeded_row_max = 0       # max number of succeeded tests in a row
+        for upd_ix in range(num_updates):
+
+            # get a batch of data
+            n_batch_actions = 0
+            while n_batch_actions < self.batch_size:
+
+                # plays till episode end, to allow update on episode
+                observations, actions, rewards, terminals, wons = self.play(
+                    steps=          self.batch_size - n_batch_actions,
+                    reset=          False,
+                    break_terminal= True,
+                    exploration=    self.exploration,
+                    sampled=        self.train_sampled,
+                    render=         False)
+
+                na = len(actions)
+                n_batch_actions += na
+                n_actions += na
+
+                last_obs = self.actor.get_observation_vec(self.envy.get_observation())
+                next_observations = observations[1:] + [last_obs]
+
+                print(observations)
+                print(actions)
+                print(rewards)
+                print(next_observations)
+                print(terminals)
+                print(wons)
+                print()
+
+                # INFO: not all algorithms (QLearning,PG,AC) need all the data below (we store 'more' just in case)
+                # TODO: check types of all
+                self.memory.add(experience={
+                    'observations':         observations,
+                    'actions':              actions,
+                    'rewards':              rewards,
+                    'next_observations':    next_observations,
+                    'terminals':            terminals,
+                    'wons':                 wons})
+
+                if terminals[-1]:
+                    n_terminals += 1 # ..may not be terminal when limit of n_batch_actions reached
+                if wons[-1]:
+                    n_won += 1
+
+                self._rlog.debug(f' >> Trainer gots {len(observations):3} observations after play and {len(self.memory):3} in memory, n_batch_actions: {n_batch_actions}' )
+
+                if upd_on_episode: break
+
+            # update Actor & process metrics
+            upd_metrics = self._update_actor(inspect=inspect and upd_ix % test_freq == 0)
+            self._upd_step += 1
+
+            if 'loss' in upd_metrics: lossL.append(loss_mavg.upd(upd_metrics['loss']))
+
+            # process / monitor policy probs
+            if self._tbwr and 'probs' in upd_metrics:
+                for k,v in avg_mm_probs(upd_metrics.pop('probs')).items():
+                    self._tbwr.add(value=v, tag=f'actor_upd/{k}', step=self._upd_step)
+
+            if self._zepro and 'zeroes' in upd_metrics:
+                self._zepro.process(zs=upd_metrics.pop('zeroes'))
+
+            if self._tbwr:
+                for k,v in upd_metrics.items():
+                    if k not in ['value','advantage','qvs']: # TODO <- those are here as Tensors with shape [256] - not value - not Ok for TB <- fix it
+                        #print(v.shape)
+                        #print(k,v)
+                        self._tbwr.add(value=v, tag=f'actor_upd/{k}', step=self._upd_step)
+
+            # test Actor
+            if upd_ix % test_freq == 0:
+
+                # single episode
+                observations, actions, rewards, won = self._play_episode(
+                    exploration=    0.0,
+                    sampled=        0.0,
+                    render=         test_render,
+                    max_steps=      test_max_steps)
+
+                # few tests
+                avg_won, avg_return = self.test_on_episodes(
+                    n_episodes=     test_episodes,
+                    max_steps=      test_max_steps)
+
+                self._rlog.info(f'# {upd_ix:3} term:{n_terminals}(+{n_terminals-last_terminals}) -- TS: {len(actions)} actions, return {sum(rewards):.1f} ({"won" if won else "lost"}) -- {test_episodes}xTS: avg_won: {avg_won*100:.1f}%, avg_return: {avg_return:.1f} -- loss_actor: {loss_mavg():.4f}')
+                last_terminals = n_terminals
+
+                if avg_won == 1:
+                    succeeded_row_curr += 1
+                    if succeeded_row_curr > succeeded_row_max: succeeded_row_max = succeeded_row_curr
+                else: succeeded_row_curr = 0
+
+            if break_ntests is not None and succeeded_row_curr==break_ntests: break
+
+        self._rlog.info(f'### Training finished, time taken: {time.time()-stime:.2f}sec')
+
+        return { # training_report
+            'n_actions':            n_actions,
+            'lossL':                lossL,
+            'n_terminals':          n_terminals,
+            'n_won':                n_won,
+            'succeeded_row_max':    succeeded_row_max}
+
+    # updates Actor policy, returns dict with Actor "metrics" (check Actor.update_with_experience())
+    def _update_actor(self, inspect:bool=False) -> Dict[str,Any]:
+        batch = self.memory.get_sample(self.batch_size)
+        return self.actor.update_with_experience(
+            batch=      batch,
+            inspect=    inspect)
 
     # plays n episodes, returns (won_factor, avg/reward)
     def test_on_episodes(
@@ -213,124 +375,6 @@ class RLTrainer(ABC):
             sum_rewards += sum(rewards)
         return n_won/n_episodes, sum_rewards/n_episodes
 
-    # generic RL training procedure, returns dict with some training stats
-    def train(
-            self,
-            num_updates: int,                       # number of training updates
-            upd_on_episode=                 False,  # updates on episode finish / terminal (does not wait till batch)
-            test_freq=                      100,    # number of updates between test
-            test_episodes: int=             100,    # number of testing episodes
-            test_max_steps: Optional[int]=  None,   # max number of episode steps while testing
-            test_render: bool=              False,  # renders one episode while test
-            inspect: bool=                  False,  # for debug / research
-            break_ntests: Optional[int]=    None,   # breaks training after all test episodes succeeded N times in a row
-    ) -> dict:
-
-        stime = time.time()
-        self._rlog.info(f'Starting train for {num_updates} updates..')
-
-        self.memory = ExperienceMemory(
-            maxsize=    self.memsize,
-            seed=       self.seed)
-        self._rlog.info(f'> initialized ExperienceMemory of maxsize {self.memsize}')
-
-        self.envy.reset()
-        loss_mavg = MovAvg()
-        lossL = []
-        n_actions = 0               # total number of train actions
-        n_terminals = 0             # number of terminal states reached while training
-        last_terminals = 0          # previous number of terminal states
-        n_won = 0                   # number of wins while training
-        succeeded_row_curr = 0      # current number of succeeded tests in a row
-        succeeded_row_max = 0       # max number of succeeded tests in a row
-        for uix in range(num_updates):
-
-            # get a batch of data
-            n_batch_actions = 0
-            while n_batch_actions < self.batch_size:
-
-                observations, actions, rewards, terminals, wons = self.play(
-                    steps=          self.batch_size - n_batch_actions,
-                    reset=          False,
-                    break_terminal= True,
-                    exploration=    self.exploration,
-                    sampled=        self.train_sampled,
-                    render=         False)
-
-                na = len(actions)
-                n_batch_actions += na
-                n_actions += na
-
-                next_observations = observations[1:] + [self.envy.get_observation()]
-
-                # INFO: not all algorithms (QLearning,PG,AC) need all the data below (we store 'more' just in case)
-                for o,a,r,n,t in zip(observations, actions, rewards, next_observations, terminals):
-                    self.memory.append(dict(observation=o, action=a, reward=r, next_observation=n, terminal=t))
-
-                if terminals[-1]:
-                    n_terminals += 1 # ..may not be terminal when limit of n_batch_actions reached
-                if wons[-1]:
-                    n_won += 1
-
-                self._rlog.debug(f' >> Trainer gots {len(observations):3} observations after play and {len(self.memory):3} in memory, n_batch_actions: {n_batch_actions}' )
-
-                if upd_on_episode: break
-
-            # update Actor & process metrics
-            upd_metrics = self._update_actor(inspect=inspect and uix % test_freq == 0)
-            self._upd_step += 1
-
-            if 'loss' in upd_metrics: lossL.append(loss_mavg.upd(upd_metrics['loss']))
-
-            # process / monitor policy probs
-            if self._tbwr and 'probs' in upd_metrics:
-                for k,v in avg_probs(upd_metrics.pop('probs')).items():
-                    self._tbwr.add(value=v, tag=f'actor_upd/{k}', step=self._upd_step)
-
-            if self._zepro and 'zeroes' in upd_metrics:
-                self._zepro.process(zs=upd_metrics.pop('zeroes'))
-
-            if self._tbwr:
-                for k,v in upd_metrics.items():
-                    if k not in ['value','advantage','qvs']: # TODO <- those are here as Tensors with shape [256] - not value - not Ok for TB <- fix it
-                        #print(v.shape)
-                        #print(k,v)
-                        self._tbwr.add(value=v, tag=f'actor_upd/{k}', step=self._upd_step)
-
-            # test Actor
-            if uix % test_freq == 0:
-
-                # single episode
-                observations, actions, rewards, won = self._play_episode(
-                    exploration=    0.0,
-                    sampled=        0.0,
-                    render=         test_render,
-                    max_steps=      test_max_steps)
-
-                # few tests
-                avg_won, avg_return = self.test_on_episodes(
-                    n_episodes=     test_episodes,
-                    max_steps=      test_max_steps)
-
-                self._rlog.info(f'# {uix:3} term:{n_terminals}(+{n_terminals-last_terminals}) -- TS: {len(actions)} actions, return {sum(rewards):.1f} ({"won" if won else "lost"}) -- {test_episodes}xTS: avg_won: {avg_won*100:.1f}%, avg_return: {avg_return:.1f} -- loss_actor: {loss_mavg():.4f}')
-                last_terminals = n_terminals
-
-                if avg_won == 1:
-                    succeeded_row_curr += 1
-                    if succeeded_row_curr > succeeded_row_max: succeeded_row_max = succeeded_row_curr
-                else: succeeded_row_curr = 0
-
-            if break_ntests is not None and succeeded_row_curr==break_ntests: break
-
-        self._rlog.info(f'### Training finished, time taken: {time.time()-stime:.2f}sec')
-
-        return { # training_report
-            'n_actions':            n_actions,
-            'lossL':                lossL,
-            'n_terminals':          n_terminals,
-            'n_won':                n_won,
-            'succeeded_row_max':    succeeded_row_max}
-
 
 # FiniteActions RL Trainer (for Actor acting on FiniteActionsRLEnvy)
 class FATrainer(RLTrainer, ABC):
@@ -344,5 +388,5 @@ class FATrainer(RLTrainer, ABC):
         self._rlog.info(f'> number of actions: {self.envy.num_actions()}')
 
     # selects 100% random action from action space, (np. seed is fixed at Trainer)
-    def _get_exploring_action(self):
-        return np.random.choice(self.envy.num_actions())
+    def _get_exploring_action(self) -> int:
+        return int(np.random.choice(self.envy.num_actions()))

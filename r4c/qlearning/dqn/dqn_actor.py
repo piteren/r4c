@@ -27,7 +27,7 @@ class DQNActor(QLearningActor, ABC):
         # some overrides and updates
         if 'logger' in kwargs: kwargs.pop('logger')     # NNWrap will always create own logger (since then it is not given) with optionally given level
         kwargs['num_actions'] = self._envy.num_actions()
-        kwargs['observation_width'] = self._get_observation_vec(self._envy.get_observation()).shape[-1]
+        kwargs['observation_width'] = self.get_observation_vec(self._envy.get_observation()).shape[-1]
 
         self.model = MOTorch(
             module_type=    module_type,
@@ -37,18 +37,19 @@ class DQNActor(QLearningActor, ABC):
 
         self._rlog.info(f'*** DQNActor : {self.name} *** initialized')
 
+
     def _get_QVs(self, observation: object) -> np.ndarray:
-        obs_vec = self._get_observation_vec(observation)
+        obs_vec = self.get_observation_vec(observation)
         return self.model(obs_vec)['logits'].detach().cpu().numpy()
 
     # optimized with single call with a batch of observations
     def get_QVs_batch(self, observations: List[object]) -> np.ndarray:
-        obs_vecs = np.asarray([self._get_observation_vec(o) for o in observations])
+        obs_vecs = np.asarray([self.get_observation_vec(o) for o in observations])
         return self.model(obs_vecs)['logits'].detach().cpu().numpy()
 
     # vectorization of observations batch, may be overridden with more optimal custom implementation
     def _get_observation_vec_batch(self, observations: List[object]) -> np.ndarray:
-        return np.asarray([self._get_observation_vec(v) for v in observations])
+        return np.asarray([self.get_observation_vec(v) for v in observations])
 
     # INFO: wont be used since DQN_Actor updates only with batches
     def _upd_QV(
@@ -61,30 +62,28 @@ class DQNActor(QLearningActor, ABC):
     # optimized with single call to session with a batch of data
     def update_with_experience(
             self,
-            batch: List[Dict[str, Any]],
+            batch: Dict[str,np.ndarray],
             inspect: bool,
     ) -> Dict[str, Any]:
 
-        observations =  extract_from_batch(batch, 'observation')
-        actions =       extract_from_batch(batch, 'action')
-        new_qvs =       extract_from_batch(batch, 'new_qvs')
-
-        obs_vecs = self._get_observation_vec_batch(observations)
-        full_qvs = np.zeros_like(obs_vecs)
-        mask = np.zeros_like(obs_vecs)
-        for v,pos in zip(new_qvs, enumerate(actions)):
+        full_qvs = np.zeros_like(batch['observations'])
+        mask = np.zeros_like(batch['observations'])
+        for v,pos in zip(batch['new_qvs'], enumerate(batch['actions'])):
             full_qvs[pos] = v
             mask[pos] = 1
+        batch['full_qvs'] = full_qvs
+        batch['mask'] = mask
 
-        self._rlog.log(5, f'>> obs_vecs (shape {obs_vecs.shape})\n{obs_vecs}')
-        self._rlog.log(5, f'>> actions (len {len(actions)}): {actions}')
-        self._rlog.log(5, f'>> new_qvs (len {len(new_qvs)}): {new_qvs}')
-        self._rlog.log(5, f'>> full_qvs\n{full_qvs}')
-        self._rlog.log(5, f'>> mask\n{mask}')
+        for k in ['observations', 'actions', 'new_qvs', 'full_qvs', 'mask']:
+            self._rlog.log(5, f'>> {k}, shape: {batch[k].shape}\n{batch[k]}')
 
-        out = self.model.backward(obs_vecs, full_qvs, mask)
+        out = self.model.backward(
+            observations=   batch['observations'],
+            labels=         batch['full_qvs'],
+            mask=           batch['mask'])
+
         out.pop('logits')
-        out.pop('acc') # accuracy for DQN does not make sense
+
         return out
 
     def _get_save_topdir(self) -> str:
