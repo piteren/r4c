@@ -12,10 +12,10 @@ class PGTrainer(FATrainer):
     def __init__(
             self,
             actor: PGActor,
-            discount: float,    # for discounted returns
-            use_mavg: bool,     # use movavg to calculate discounted returns
-            mavg_factor: float,
-            do_zscore: bool,
+            discount: float,    # discount factor for discounted returns
+            use_mavg: bool,     # use MovAvg (moving average, reversed) to calculate discounted returns
+            mavg_factor: float, # MovAvg factor
+            do_zscore: bool,    # apply zscore norm to discounted returns
             **kwargs):
 
         FATrainer.__init__(self, actor=actor, **kwargs)
@@ -33,7 +33,7 @@ class PGTrainer(FATrainer):
 
         batch = self.memory.get_all()
 
-        # ********************************************************************************************* prepare dreturns
+        ### prepare dreturns
 
         # split rewards into episodes
         episode_rewards = []
@@ -58,34 +58,33 @@ class PGTrainer(FATrainer):
 
         if inspect:
 
+            # inspect each axis of observations
             oL = np.split(batch['observations'], batch['observations'].shape[-1], axis=-1)
-
             two_dim_multi(
                 ys=     oL,
                 names=  [f'obs_{ix}' for ix in range(len(oL))])
 
-            # prepare all 4 for inspect
-            ret_mavg = []
-            ret_disc = []
+            # inspect rewards and all 4 types of dreturns
+            dret_mavg = []
+            dret_disc = []
             for rs in episode_rewards:
-                ret_mavg += movavg_return(rewards=rs, factor=self.movavg_factor)
-                ret_disc += discounted_return(rewards=rs, discount=self.discount)
-            ret_mavg_norm = zscore_norm(ret_mavg)
-            ret_disc_norm = zscore_norm(ret_disc)
-
+                dret_mavg += movavg_return(rewards=rs, factor=self.movavg_factor)
+                dret_disc += discounted_return(rewards=rs, discount=self.discount)
+            dret_mavg_norm = zscore_norm(dret_mavg)
+            dret_disc_norm = zscore_norm(dret_disc)
             two_dim_multi(
                 ys=     [
                     batch['rewards'],
-                    ret_mavg,
-                    ret_disc,
-                    ret_mavg_norm,
-                    ret_disc_norm],
+                    dret_mavg,
+                    dret_disc,
+                    dret_mavg_norm,
+                    dret_disc_norm],
                 names=  [
                     'rewards',
-                    'ret_mavg',
-                    'ret_disc',
-                    'ret_mavg_norm',
-                    'ret_disc_norm'],
+                    'dret_mavg',
+                    'dret_disc',
+                    'dret_mavg_norm',
+                    'dret_disc_norm'],
                 legend_loc= 'lower left')
 
         return self.actor.update_with_experience(
