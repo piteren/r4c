@@ -15,6 +15,10 @@ from r4c.helpers import RLException, NUM
 
 # Trainer Experience Memory
 class ExperienceMemory:
+    """
+    Experience Memory stores data generated while Actor plays with its policy on Envy.
+    Data is stored as numpy arrays.
+    """
 
     def __init__(
             self,
@@ -121,11 +125,11 @@ class RLTrainer(ABC):
             intervals=  (10,50,100),
             tbwr=       self._tbwr) if not self.hpmser_mode else None
 
-    # plays Actor on Envy until N steps performed or terminal state, collects and returns experience
+    # plays Actor on Envy until N steps performed or terminal state reached, collects and returns experience
     def play(
             self,
             reset: bool,            # for True starts play from the initial state
-            steps: int,
+            steps: int,             # number of steps to play
             break_terminal: bool,   # for True breaks play at terminal state
             exploration: float,
             sampled: float,
@@ -198,8 +202,8 @@ class RLTrainer(ABC):
     # performs one Actor move (observation -> action -> reward)
     def _exploratory_move(
             self,
-            exploration=    0.0, # prob pf exploration
-            sampled=        0.0, # prob of sampling (vs argmax)
+            exploration=    0.0, # exploration factor (prob)
+            sampled=        0.0, # sampling (vs argmax) factor (prob)
     ) -> Tuple[
         np.ndarray, # observation
         NUM,        # action
@@ -242,7 +246,6 @@ class RLTrainer(ABC):
             break_ntests: Optional[int]=    None,   # breaks training after all test episodes succeeded N times in a row
     ) -> dict:
 
-        stime = time.time()
         self._rlog.info(f'Starting train for {num_updates} updates..')
 
         self.memory = ExperienceMemory(
@@ -251,6 +254,7 @@ class RLTrainer(ABC):
         self._rlog.info(f'> initialized ExperienceMemory of maxsize {self.mem_max_size}')
 
         self.envy.reset()
+
         loss_mavg = MovAvg()
         lossL = []
         n_actions = 0               # total number of train actions
@@ -259,9 +263,11 @@ class RLTrainer(ABC):
         n_won = 0                   # number of wins while training
         succeeded_row_curr = 0      # current number of succeeded tests in a row
         succeeded_row_max = 0       # max number of succeeded tests in a row
+
+        stime = time.time()
         for upd_ix in range(num_updates):
 
-            # get a batch of data
+            # get a batch of data (play)
             n_batch_actions = 0
             while n_batch_actions < self.batch_size:
 
@@ -299,7 +305,8 @@ class RLTrainer(ABC):
 
                 if upd_on_episode: break
 
-            # update Actor & process metrics
+            ### update Actor & process metrics
+
             upd_metrics = self._update_actor(inspect=inspect and upd_ix % test_freq == 0)
             self._upd_step += 1
 
@@ -344,7 +351,7 @@ class RLTrainer(ABC):
 
         self._rlog.info(f'### Training finished, time taken: {time.time()-stime:.2f}sec')
 
-        return { # training_report
+        return {
             'n_actions':            n_actions,
             'lossL':                lossL,
             'n_terminals':          n_terminals,
