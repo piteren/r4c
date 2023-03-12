@@ -30,7 +30,6 @@ class PGActor(TrainableActor, ABC):
         np.random.seed(seed)
 
         # some overrides and updates
-        if 'logger' in kwargs: kwargs.pop('logger')     # NNWrap will always create own logger (since then it is not given) with optionally given level
         kwargs['num_actions'] = self._envy.num_actions()
         kwargs['observation_width'] = self.observation_vector(self._envy.get_observation()).shape[-1]
 
