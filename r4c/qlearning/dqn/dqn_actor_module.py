@@ -5,14 +5,20 @@ from torchness.layers import LayDense
 from typing import Optional
 
 
-
+# Deep QNetwork Model
 class DQNModel(Module):
+    """
+    Since in QLearning number of observations may be finite (in QTable is),
+    observations received by model may be of int dtype.
+    Those are preventively converted to float in froward() and loss().
+    """
 
     def __init__(
             self,
             num_actions: int=   4,
             observation_width=  4,
             hidden_layers=      (12,),
+            use_huber: bool=    False,  # for True uses Huber loss
             seed=               121):
 
         torch.nn.Module.__init__(self)
@@ -39,17 +45,16 @@ class DQNModel(Module):
             out_features=   num_actions,
             activation=     None)
 
-        # TODO: try with Hubner
-        self.loss_fn = torch.nn.MSELoss(reduction='none')
+        loss_class = torch.nn.HuberLoss if use_huber else torch.nn.MSELoss
+        self.loss_fn = loss_class(reduction='none')
 
 
     def forward(self, observations:TNS) -> DTNS:
-        out = self.ln(observations.to(torch.float32)) # + safety convert
+        out = self.ln(observations.to(torch.float32)) # + safety convert dtype
         for lin,ln in zip(self.linL,self.lnL):
             out = lin(out)
             out = ln(out)
-        logits = self.logits(out)
-        return {'logits': logits}
+        return {'logits': self.logits(out)}
 
 
     def loss(
@@ -59,7 +64,7 @@ class DQNModel(Module):
             mask: Optional[TNS]=    None
     ) -> DTNS:
         out = self(observations)
-        loss = self.loss_fn(out['logits'], labels.to(torch.float32)) # + safety convert
+        loss = self.loss_fn(out['logits'], labels.to(torch.float32)) # + safety convert dtype
         if mask is not None:
             loss *= mask                        # mask
         loss = torch.sum(loss, dim=-1)          # reduce over samples

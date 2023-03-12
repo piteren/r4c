@@ -5,7 +5,7 @@ from typing import List, Union
 NUM = Union[int,float]
 
 
-# ReinforcementLearning Exception
+# Reinforcement Learning Exception
 class RLException(Exception): pass
 
 

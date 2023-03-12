@@ -16,7 +16,7 @@ class Actor(ABC):
     def get_policy_action(self, observation: object) -> object: pass
 
 
-# cooperates with RLTrainer, prepares obs_vec, updates self policy, saves
+# trained by RLTrainer, prepares obs_vec, updates self policy, saves
 class TrainableActor(Actor, ABC):
 
     def __init__(
@@ -80,6 +80,10 @@ class TrainableActor(Actor, ABC):
     # saves Actor (self)
     @abstractmethod
     def save(self): pass
+
+    # loads Actor (self)
+    @abstractmethod
+    def load(self): pass
 
     # returns some info about Actor
     @abstractmethod

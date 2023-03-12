@@ -2,7 +2,7 @@ from r4c.qlearning.ql_trainer import QLearningTrainer
 from r4c.qlearning.qtable.qt_actor import QTableActor
 
 
-# Trainer for QTableActor, sets his update_rate
+# Trainer for QTableActor, sets Actor update_rate
 class QTableTrainer(QLearningTrainer):
 
     def __init__(

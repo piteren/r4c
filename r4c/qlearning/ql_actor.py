@@ -29,7 +29,7 @@ class QLearningActor(TrainableActor, ABC):
     @abstractmethod
     def _get_QVs(self, observation:np.ndarray) -> np.ndarray: pass
 
-    # returns QVs (for all actions) for given observations batch, here baseline implementation - may be overridden with optimized version
+    # returns QVs (for all actions) for given observations batch, here baseline implementation
     def get_QVs_batch(self, observations:np.ndarray) -> np.ndarray:
         return np.asarray([self._get_QVs(o) for o in observations])
 
@@ -37,17 +37,18 @@ class QLearningActor(TrainableActor, ABC):
     def get_policy_action(
             self,
             observation: np.ndarray,
-            sampled=    False) -> int:
+            sampled=    False,  # (experimental) whether to sample action with softmax on QVs
+    ) -> int:
 
         qvs = self._get_QVs(observation)
 
         if sampled:
-            obs_probs = softmax(qvs) # baseline with softmax on QVs
+            obs_probs = softmax(qvs)
             return np.random.choice(len(qvs), p=obs_probs)
 
         return int(np.argmax(qvs))
 
-    # updates QV for given observation and action
+    # updates QV for given observation and action, returns loss
     @abstractmethod
     def _upd_QV(
             self,
@@ -62,9 +63,9 @@ class QLearningActor(TrainableActor, ABC):
             inspect: bool,
     ) -> Dict[str, Any]:
         loss = 0.0
-        for ob, ac, nq in zip(batch['observations'], batch['actions'], batch['new_qvs']):
+        for obs, act, nqv in zip(batch['observations'], batch['actions'], batch['new_qvs']):
             loss += self._upd_QV(
-                observation=    ob,
-                action=         ac,
-                new_qv=         nq)
+                observation=    obs,
+                action=         act,
+                new_qv=         nqv)
         return {'loss': loss}

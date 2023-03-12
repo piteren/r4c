@@ -11,7 +11,7 @@ class QLearningTrainer(FATrainer):
     def __init__(
             self,
             actor: QLearningActor,
-            gamma: float,       # QLearning gamma (discount)
+            gamma: float,       # QLearning gamma (discount factor)
             **kwargs):
 
         FATrainer.__init__(self, actor=actor, **kwargs)
@@ -21,7 +21,7 @@ class QLearningTrainer(FATrainer):
         self._rlog.info(f'*** QLearningTrainer *** initialized')
         self._rlog.info(f'> gamma: {self.gamma}')
 
-
+    # updates Actor with new QV (from Bellman Equation)
     def _update_actor(self, inspect=False) -> dict:
 
         batch = self.memory.get_sample(self.batch_size)
@@ -32,7 +32,7 @@ class QLearningTrainer(FATrainer):
             qvs=        next_observations_qvs,
             terminals=  batch['terminals'])
 
-        new_qvs = [r + self.gamma * max(no_qvs) for r, no_qvs in zip(batch['rewards'], next_observations_qvs)]
+        new_qvs = [r + self.gamma * max(no_qvs) for r, no_qvs in zip(batch['rewards'], next_observations_qvs)] # Bellman Equation
         batch['new_qvs'] = np.asarray(new_qvs)
 
         return self.actor.update_with_experience(

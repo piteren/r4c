@@ -25,7 +25,6 @@ class DQNActor(QLearningActor, ABC):
             **kwargs)
 
         # some overrides and updates
-        if 'logger' in kwargs: kwargs.pop('logger')     # NNWrap will always create own logger (since then it is not given) with optionally given level
         kwargs['num_actions'] = self._envy.num_actions()
         kwargs['observation_width'] = self.observation_vector(self._envy.get_observation()).shape[-1]
 
@@ -37,11 +36,11 @@ class DQNActor(QLearningActor, ABC):
 
         self._rlog.info(f'*** DQNActor : {self.name} *** initialized')
 
-
+    # returns QVs for a single observation (it is equal to batch call..)
     def _get_QVs(self, observation:np.ndarray) -> np.ndarray:
         return self.model(observations=observation)['logits'].detach().cpu().numpy()
 
-    # single call with a batch of observations (..no diff with _get_QVs)
+    # single call with a batch of observations
     def get_QVs_batch(self, observations:np.ndarray) -> np.ndarray:
         return self.model(observations=observations)['logits'].detach().cpu().numpy()
 
@@ -51,7 +50,7 @@ class DQNActor(QLearningActor, ABC):
             observation: np.ndarray,
             action: int,
             new_qv: float) -> float:
-        raise RLException('not implemented, should not be used since DQN_Actor updates only with batches')
+        raise RLException('not implemented, should not be used since DQN_Actor only updates with a batch')
 
     # optimized with single call to session with a batch of data
     def update_with_experience(
@@ -80,11 +79,18 @@ class DQNActor(QLearningActor, ABC):
 
         return out
 
+
     def _get_save_topdir(self) -> str:
         return self.model['save_topdir']
 
+
     def save(self):
         self.model.save()
+
+
+    def load(self):
+        self.model.load()
+
 
     def __str__(self) -> str:
         return str(self.model)

@@ -1,15 +1,22 @@
 import numpy as np
-from typing import Hashable, Dict, List
+from pypaq.lipytools.files import prep_folder, w_pickle, r_pickle
+from typing import Dict, List
 
 from r4c.qlearning.ql_actor import QLearningActor
 from r4c.helpers import RLException
 
 
 class QTable:
+    """
+    QTable stores QVs for observations.
+    Here implemented as a Dict {observation_hash: QVs}, where:
+    - observation hash is a string,
+    - QVs are stored with numpy array.
+    """
 
     def __init__(self, width:int):
         self.__width = width
-        self.__table: Dict[Hashable, np.ndarray] = {}  # {observation_hash: QVs}
+        self.__table: Dict[str, np.ndarray] = {}  # {observation_hash: QVs}
         self.__keys: List[np.ndarray] = []
 
     # baseline hash of np.ndarray
@@ -54,8 +61,7 @@ class QTableActor(QLearningActor):
     """
     QTableActor may be trained by QLearningTrainer.
     Trainer is responsible for computation of new QV for an Actor.
-    Actor on the other side has its own QV update_rate, which works as a kind of Actor-specific learning ratio,
-    learning process is then mainly directed by Trainer with possible little override by an Actor.
+    Actor has its own QV update_rate, which works as a kind of Actor-specific learning ratio.
     Actor is responsible for computation of its loss.
     """
 
@@ -71,12 +77,12 @@ class QTableActor(QLearningActor):
         self.__qtable = QTable(self._envy.num_actions())
         self._update_rate = None # needs to be set before update
 
-
+    # allows to set update rate of Actor
     def set_update_rate(self, update_rate:float):
         self._update_rate = update_rate
         self._rlog.info(f'> QTableActor set update_rate to: {self._update_rate}')
 
-
+    # returns QVs for given observation
     def _get_QVs(self, observation:np.ndarray) -> np.ndarray:
         return self.__qtable.get_QVs(observation)
 
@@ -107,7 +113,18 @@ class QTableActor(QLearningActor):
 
 
     def save(self):
-        raise RLException('not implemented')
+        save_data = {
+            'update_rate': self._update_rate,
+            'qtable':      self.__qtable}
+        folder = self.get_save_dir()
+        prep_folder(folder)
+        w_pickle(save_data, f'{folder}/qt.data')
+
+
+    def load(self):
+        saved_data = r_pickle(f'{self.get_save_dir()}/qt.data')
+        self._update_rate = saved_data['update_rate']
+        self.__qtable = saved_data['qtable']
 
 
     def __str__(self):
