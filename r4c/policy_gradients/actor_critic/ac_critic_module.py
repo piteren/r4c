@@ -66,7 +66,7 @@ class ACCriticModule(Module):
             self,
             observations: TNS,
             actions_taken_OH: TNS, # one-hot vector of action taken
-            next_actions_qvs: TNS,
+            next_observations_qvs: TNS,
             next_actions_probs: TNS,
             rewards: TNS
     ) -> DTNS:
@@ -75,7 +75,7 @@ class ACCriticModule(Module):
         qvs = out['qvs']
 
         qv = torch.sum(qvs * actions_taken_OH, dim=-1)
-        next_V = torch.sum(next_actions_qvs * next_actions_probs, dim=-1) # V(next_s)
+        next_V = torch.sum(next_observations_qvs * next_actions_probs, dim=-1) # V(next_s)
         labels = rewards + self.gamma * next_V
         diff = labels - qv
         loss = torch.mean(diff * diff) # MSE

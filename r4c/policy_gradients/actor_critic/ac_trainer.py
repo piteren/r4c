@@ -1,5 +1,6 @@
 import numpy as np
 
+from r4c.helpers import update_terminal_QVs
 from r4c.policy_gradients.pg_actor import PGActor
 from r4c.policy_gradients.actor_critic.ac_critic import ACCritic
 from r4c.policy_gradients.pg_trainer import PGTrainer
@@ -54,8 +55,8 @@ class ACTrainer(PGTrainer):
         next_actions_probs = self.actor.get_policy_probs(batch['next_observations']) # get next_observations actions_probs (with Actor policy)
 
         # get QVs of current observations
-        qvss = self.critic.get_qvs_batch(batch['observations'])
-        qv_actions = qvss[np.arange(batch['actions'].shape[-1]), batch['actions']] # get QV of selected actions
+        qvs = self.critic.get_qvs(batch['observations'])
+        qv_actions = qvs[np.arange(batch['actions'].shape[-1]), batch['actions']] # get QV of selected actions
         batch['dreturns'] = qv_actions
 
         # update Actor
@@ -66,11 +67,14 @@ class ACTrainer(PGTrainer):
         actions_OH = self._actions_OH_encoding(batch['actions'])
 
         # get QVs of next observations
-        next_actions_qvs = self.critic.get_qvs_batch(batch['next_observations'])
-        next_actions_qvs = self._update_terminal_QVs(next_actions_qvs, terminals=batch['terminals'])
+        next_observations_qvs = self.critic.get_qvs(batch['next_observations'])
+
+        update_terminal_QVs(
+            qvs=        next_observations_qvs,
+            terminals=  batch['terminals'])
 
         batch['actions_OH'] = actions_OH
-        batch['next_actions_qvs'] = next_actions_qvs
+        batch['next_observations_qvs'] = next_observations_qvs
         batch['next_actions_probs'] = next_actions_probs
 
         # TODO: replace prints with logger
@@ -86,7 +90,7 @@ class ACTrainer(PGTrainer):
             print(f'qvss {qvss.shape}, {qvss[0]}')
             print(f'qv_actions {qv_actions.shape}, {qv_actions[0]}')
             print(f'actions_OH {actions_OH.shape}, {actions_OH[0]}')
-            print(f'next_action_qvs {next_actions_qvs.shape}, {next_actions_qvs[0]}')
+            print(f'next_observations_qvs {next_observations_qvs.shape}, {next_observations_qvs[0]}')
         """
 
         # update Critic

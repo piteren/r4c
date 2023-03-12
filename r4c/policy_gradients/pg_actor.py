@@ -9,7 +9,7 @@ from r4c.policy_gradients.pg_actor_module import PGActorModule
 
 
 
-# PolicyGradients TrainableActor, NN based
+# Policy Gradient Trainable Actor, NN based
 class PGActor(TrainableActor, ABC):
 
     def __init__(

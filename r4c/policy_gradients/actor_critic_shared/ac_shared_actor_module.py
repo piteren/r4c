@@ -69,11 +69,11 @@ class ACSharedActorModule(Module):
         value = torch.sum(qvs * probs) # value of observation (next_observation)
 
         return {
-            'qvs':          qvs,
-            'logits':       logits,
-            'probs':        probs,
-            'value':        value,
-            'zeroes':       zsL}
+            'qvs':      qvs,
+            'logits':   logits,
+            'probs':    probs,
+            'value':    value,
+            'zeroes':   zsL}
 
 
     def loss(

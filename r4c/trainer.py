@@ -121,7 +121,7 @@ class RLTrainer(ABC):
             intervals=  (10,50,100),
             tbwr=       self._tbwr) if not self.hpmser_mode else None
 
-    # plays (envy) until N steps performed or terminal state, collects and returns experience
+    # plays Actor on Envy until N steps performed or terminal state, collects and returns experience
     def play(
             self,
             reset: bool,            # for True starts play from the initial state
@@ -154,16 +154,15 @@ class RLTrainer(ABC):
                 exploration=    exploration,
                 sampled=        sampled)
 
-            is_terminal = self.envy.is_terminal()
             observations.append(observation)
             actions.append(action)
             rewards.append(reward)
-            terminals.append(is_terminal)
+            terminals.append(self.envy.is_terminal())
             wons.append(self.envy.won())
 
             if render: self.envy.render()
 
-            if is_terminal and break_terminal:
+            if terminals[-1] and break_terminal:
                 break
 
         self._rlog.log(5,f'played {len(actions)} steps (break_terminal is {break_terminal})')
@@ -216,10 +215,12 @@ class RLTrainer(ABC):
         obs_vec = self.actor.observation_vector(pre_action_observation)
 
         # get and run action
-        if np.random.rand() < exploration: action = self._get_exploring_action()
-        else:                              action = self.actor.get_policy_action(
-                                                        observation=    obs_vec,
-                                                        sampled=        np.random.rand() < sampled)
+        if np.random.rand() < exploration:
+            action = self._get_exploring_action()
+        else:
+            action = self.actor.get_policy_action(
+                observation=    obs_vec,
+                sampled=        np.random.rand() < sampled)
         reward = self.envy.run(action)
 
         return obs_vec, action, reward
@@ -280,7 +281,7 @@ class RLTrainer(ABC):
                 last_obs = self.actor.observation_vector(self.envy.get_observation())
                 next_observations = observations[1:] + [last_obs]
 
-                # INFO: not all algorithms (QLearning,PG,AC) need all the data below (we store 'more' just in case)
+                # experience data used to update Actor
                 self.memory.add(experience={
                     'observations':         observations,
                     'actions':              actions,
@@ -314,9 +315,6 @@ class RLTrainer(ABC):
 
             if self._tbwr:
                 for k,v in upd_metrics.items():
-                    #if k not in ['value','advantage','qvs']: # TODO <- those are here as Tensors with shape [256] - not value - not Ok for TB <- fix it
-                    #print(v.shape)
-                    #print(k,v)
                     self._tbwr.add(value=v, tag=f'actor_upd/{k}', step=self._upd_step)
 
             # test Actor

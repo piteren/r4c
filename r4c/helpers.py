@@ -1,4 +1,5 @@
 import numpy as np
+from pypaq.lipytools.moving_average import MovAvg
 from typing import List, Union
 
 NUM = Union[int,float]
@@ -24,15 +25,21 @@ def discounted_return(
         dar[i] = s
     return list(dar)
 
-# prepares list of moving_average return from [reward]
+# prepares list of moving_average return from rewards
 def movavg_return(
         rewards: List[float],
         factor: float           # (0.0-0.1> factor of current reward taken for update
 ) -> List[float]:
     mvr = np.zeros_like(rewards)
     s = rewards[-1]
-    mvr[-1] = s
+    mavg = MovAvg(factor=factor, first_avg=False)
+    mvr[-1] = mavg.upd(s)
     for i in reversed(range(len(rewards[:-1]))):
-        s = (1-factor) * s + factor * rewards[i]
-        mvr[i] = s
+        mvr[i] = mavg.upd(rewards[i])
     return list(mvr)
+
+# sets terminal states of QVs to zeroes (in place)
+def update_terminal_QVs(qvs:np.ndarray, terminals:np.ndarray) -> None:
+    qvs_terminal = np.zeros_like(qvs[0])
+    for ix, t in enumerate(terminals):
+        if t: qvs[ix] = qvs_terminal

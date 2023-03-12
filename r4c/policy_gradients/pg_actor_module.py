@@ -5,7 +5,7 @@ from torchness.layers import LayDense, zeroes
 from torchness.base_elements import scaled_cross_entropy
 
 
-# baseline PG Actor Module
+# baseline Policy Gradient Actor Module
 class PGActorModule(Module):
 
     def __init__(

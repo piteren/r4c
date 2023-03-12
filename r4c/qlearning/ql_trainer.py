@@ -1,5 +1,6 @@
 import numpy as np
 
+from r4c.helpers import update_terminal_QVs
 from r4c.trainer import FATrainer
 from r4c.qlearning.ql_actor import QLearningActor
 
@@ -27,9 +28,9 @@ class QLearningTrainer(FATrainer):
 
         next_observations_qvs = self.actor.get_QVs_batch(batch['next_observations'])
 
-        qvs_terminal = np.zeros(self.envy.num_actions())
-        for ix,t in enumerate(batch['terminals']):
-            if t: next_observations_qvs[ix] = qvs_terminal
+        update_terminal_QVs(
+            qvs=        next_observations_qvs,
+            terminals=  batch['terminals'])
 
         new_qvs = [r + self.gamma * max(no_qvs) for r, no_qvs in zip(batch['rewards'], next_observations_qvs)]
         batch['new_qvs'] = np.asarray(new_qvs)
