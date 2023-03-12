@@ -46,9 +46,9 @@ class PGActorModule(Module):
         self.use_scaled_ce = use_scaled_ce
 
 
-    def forward(self, observation:TNS) -> DTNS:
+    def forward(self, observations:TNS) -> DTNS:
 
-        out = self.ln(observation) if self.lay_norm else observation
+        out = self.ln(observations) if self.lay_norm else observations
 
         zsL = []
         for lin,ln in zip(self.linL,self.lnL):
@@ -67,21 +67,21 @@ class PGActorModule(Module):
 
     def loss(
             self,
-            observation: TNS,
-            action_taken: TNS,
-            dreturn: TNS) -> DTNS:
+            observations: TNS,
+            actions_taken: TNS,
+            dreturns: TNS) -> DTNS:
 
-        out = self(observation)
+        out = self(observations)
         logits = out['logits']
 
         if self.use_scaled_ce:
             actor_ce_scaled = scaled_cross_entropy(
-                labels= action_taken,
-                scale=  dreturn,
+                labels= actions_taken,
+                scale=  dreturns,
                 probs=  out['probs'])
         else:
-            actor_ce = torch.nn.functional.cross_entropy(logits, action_taken, reduction='none')
-            actor_ce_scaled = actor_ce * dreturn
+            actor_ce = torch.nn.functional.cross_entropy(logits, actions_taken, reduction='none')
+            actor_ce_scaled = actor_ce * dreturns
 
         out.update({'loss': torch.mean(actor_ce_scaled)})
 

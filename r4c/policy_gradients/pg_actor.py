@@ -1,15 +1,13 @@
 from abc import ABC
 import numpy as np
 from torchness.motorch import MOTorch, Module
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 
-from r4c.helpers import extract_from_batch
 from r4c.actor import TrainableActor
 from r4c.envy import FiniteActionsRLEnvy
 from r4c.policy_gradients.pg_actor_module import PGActorModule
 
 
-# TODO: implement parallel training, in batches (many envys)
 
 # PolicyGradients TrainableActor, NN based
 class PGActor(TrainableActor, ABC):
@@ -34,7 +32,7 @@ class PGActor(TrainableActor, ABC):
         # some overrides and updates
         if 'logger' in kwargs: kwargs.pop('logger')     # NNWrap will always create own logger (since then it is not given) with optionally given level
         kwargs['num_actions'] = self._envy.num_actions()
-        kwargs['observation_width'] = self.get_observation_vec(self._envy.get_observation()).shape[-1]
+        kwargs['observation_width'] = self.observation_vector(self._envy.get_observation()).shape[-1]
 
         self.model = MOTorch(
             module_type=    module_type,
@@ -44,57 +42,43 @@ class PGActor(TrainableActor, ABC):
 
         self._rlog.info(f'*** PGActor : {self.name} *** (NN based) initialized')
 
-    # vectorization of observations batch, may be overridden with more optimal custom implementation
-    def _get_observation_vec_batch(self, observations: List[object]) -> np.ndarray:
-        return np.asarray([self.get_observation_vec(v) for v in observations])
+    # prepares policy probs
+    def get_policy_probs(self, observation:np.ndarray) -> np.ndarray:
+        return self.model(observations=observation)['probs'].detach().cpu().numpy()
 
-    def get_policy_probs(self, observation: object) -> np.ndarray:
-        obs_vec = self.get_observation_vec(observation)
-        return self.model(obs_vec)['probs'].detach().cpu().numpy()
-
-    # batch call to NN
-    def get_policy_probs_batch(self, observations: List[object]) -> np.ndarray:
-        obs_vecs = self._get_observation_vec_batch(observations)
-        return self.model(obs_vecs)['probs'].detach().cpu().numpy()
-
-    # gets policy action based on policy (action) probs
-    def get_policy_action(self, observation: object, sampled=False) -> int:
+    # returns policy action based on policy probs
+    def get_policy_action(self, observation:np.ndarray, sampled=False) -> int:
         probs = self.get_policy_probs(observation)
         if sampled: action = np.random.choice(self._envy.num_actions(), p=probs)
         else:       action = np.argmax(probs)
         return int(action)
 
-    def get_policy_action_batch(self, observations: List[object], sampled=False) -> np.ndarray:
-        probs = self.get_policy_probs_batch(observations)
-        if sampled: actions = np.random.choice(self._envy.num_actions(), size=probs.shape[-1], p=probs)
-        else:       actions = np.argmax(probs, axis=-1)
-        return actions
-
     # updates self NN with batch of data
     def update_with_experience(
             self,
-            batch: List[Dict[str,Any]],
+            batch: Dict[str,np.ndarray],
             inspect: bool,
     ) -> Dict[str, Any]:
 
-        observations = extract_from_batch(batch, 'observation')
-
-        obs_vecs = self._get_observation_vec_batch(observations)
         out = self.model.backward(
-            observation=    obs_vecs,
-            action_taken=   extract_from_batch(batch, 'action'),
-            dreturn=        extract_from_batch(batch, 'dreturn'))
+            observations=   batch['observations'],
+            actions_taken=  batch['actions'],
+            dreturns=       batch['dreturns'])
 
         out.pop('logits')
-        if 'probs' in out: out['probs'] = out['probs'].cpu().detach().numpy()
+        if 'probs' in out:
+            out['probs'] = out['probs'].cpu().detach().numpy()
 
         return out
+
 
     def _get_save_topdir(self) -> str:
         return self.model['save_topdir']
 
+
     def save(self):
         self.model.save()
+
 
     def __str__(self):
         return self.model.__str__()

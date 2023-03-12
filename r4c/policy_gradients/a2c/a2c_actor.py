@@ -1,8 +1,8 @@
+import numpy as np
 from pypaq.lipytools.plots import two_dim_multi
 from torchness.motorch import Module
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 
-from r4c.helpers import extract_from_batch
 from r4c.policy_gradients.pg_actor import PGActor
 from r4c.policy_gradients.a2c.a2c_actor_module import A2CModule
 
@@ -23,24 +23,23 @@ class A2CActor(PGActor):
 
     def update_with_experience(
             self,
-            batch: List[Dict[str, Any]],
+            batch: Dict[str,np.ndarray],
             inspect: bool
     ) -> Dict[str, Any]:
 
         actor_metrics = super().update_with_experience(batch,inspect)
 
         if inspect:
+            ins_vals = {
+                'dreturns':     batch['dreturns'],
+                'value':        actor_metrics['value'].detach().cpu().numpy(),
+                'advantage':    actor_metrics['advantage'].detach().cpu().numpy()}
             two_dim_multi(
-                ys=     [
-                    extract_from_batch(batch, 'dreturn'),
-                    actor_metrics.pop('value').detach().cpu().numpy(),
-                    actor_metrics.pop('advantage').detach().cpu().numpy(),
-                ],
-                names=  [
-                    'dreturns',
-                    'value',
-                    'advantage',
-                ],
+                ys=         list(ins_vals.values()),
+                names=      list(ins_vals.keys()),
                 legend_loc= 'lower left')
+
+        actor_metrics.pop('value')
+        actor_metrics.pop('advantage')
 
         return actor_metrics

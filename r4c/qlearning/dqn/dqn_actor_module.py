@@ -44,7 +44,7 @@ class DQNModel(Module):
 
 
     def forward(self, observations:TNS) -> DTNS:
-        out = self.ln(observations)
+        out = self.ln(observations.to(torch.float32)) # + safety convert
         for lin,ln in zip(self.linL,self.lnL):
             out = lin(out)
             out = ln(out)
@@ -59,7 +59,7 @@ class DQNModel(Module):
             mask: Optional[TNS]=    None
     ) -> DTNS:
         out = self(observations)
-        loss = self.loss_fn(out['logits'], labels)
+        loss = self.loss_fn(out['logits'], labels.to(torch.float32)) # + safety convert
         if mask is not None:
             loss *= mask                        # mask
         loss = torch.sum(loss, dim=-1)          # reduce over samples

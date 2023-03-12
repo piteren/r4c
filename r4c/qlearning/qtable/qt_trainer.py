@@ -1,15 +1,8 @@
-"""
-
- 2022 (c) piteren
-
-    QTableTrainer - Trainer specific for training of QTableActor, sets update_rate of Actor.
-
-"""
-
 from r4c.qlearning.ql_trainer import QLearningTrainer
 from r4c.qlearning.qtable.qt_actor import QTableActor
 
 
+# Trainer for QTableActor, sets his update_rate
 class QTableTrainer(QLearningTrainer):
 
     def __init__(
@@ -23,4 +16,4 @@ class QTableTrainer(QLearningTrainer):
         self.actor.set_update_rate(update_rate)
 
         self._rlog.info('*** QTableTrainer *** initialized')
-        self._rlog.info('> actor update_rate: {update_rate}')
+        self._rlog.info(f'> actor update_rate: {update_rate}')

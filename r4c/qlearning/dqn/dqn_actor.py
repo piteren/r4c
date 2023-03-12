@@ -1,9 +1,9 @@
 from abc import ABC
 import numpy as np
 from torchness.motorch import MOTorch, Module
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 
-from r4c.helpers import RLException, extract_from_batch
+from r4c.helpers import RLException
 from r4c.qlearning.ql_actor import QLearningActor
 from r4c.qlearning.dqn.dqn_actor_module import DQNModel
 
@@ -27,7 +27,7 @@ class DQNActor(QLearningActor, ABC):
         # some overrides and updates
         if 'logger' in kwargs: kwargs.pop('logger')     # NNWrap will always create own logger (since then it is not given) with optionally given level
         kwargs['num_actions'] = self._envy.num_actions()
-        kwargs['observation_width'] = self.get_observation_vec(self._envy.get_observation()).shape[-1]
+        kwargs['observation_width'] = self.observation_vector(self._envy.get_observation()).shape[-1]
 
         self.model = MOTorch(
             module_type=    module_type,
@@ -38,26 +38,20 @@ class DQNActor(QLearningActor, ABC):
         self._rlog.info(f'*** DQNActor : {self.name} *** initialized')
 
 
-    def _get_QVs(self, observation: object) -> np.ndarray:
-        obs_vec = self.get_observation_vec(observation)
-        return self.model(obs_vec)['logits'].detach().cpu().numpy()
+    def _get_QVs(self, observation:np.ndarray) -> np.ndarray:
+        return self.model(observations=observation)['logits'].detach().cpu().numpy()
 
-    # optimized with single call with a batch of observations
-    def get_QVs_batch(self, observations: List[object]) -> np.ndarray:
-        obs_vecs = np.asarray([self.get_observation_vec(o) for o in observations])
-        return self.model(obs_vecs)['logits'].detach().cpu().numpy()
+    # single call with a batch of observations (..no diff with _get_QVs)
+    def get_QVs_batch(self, observations:np.ndarray) -> np.ndarray:
+        return self.model(observations=observations)['logits'].detach().cpu().numpy()
 
-    # vectorization of observations batch, may be overridden with more optimal custom implementation
-    def _get_observation_vec_batch(self, observations: List[object]) -> np.ndarray:
-        return np.asarray([self.get_observation_vec(v) for v in observations])
 
-    # INFO: wont be used since DQN_Actor updates only with batches
     def _upd_QV(
             self,
-            observation: object,
+            observation: np.ndarray,
             action: int,
             new_qv: float) -> float:
-        raise RLException('not implemented')
+        raise RLException('not implemented, should not be used since DQN_Actor updates only with batches')
 
     # optimized with single call to session with a batch of data
     def update_with_experience(

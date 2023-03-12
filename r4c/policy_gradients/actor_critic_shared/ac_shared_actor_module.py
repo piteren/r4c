@@ -51,9 +51,9 @@ class ACSharedActorModule(Module):
         self.use_scaled_ce = use_scaled_ce
 
 
-    def forward(self, observation:TNS) -> DTNS:
+    def forward(self, observations:TNS) -> DTNS:
 
-        out = self.ln(observation) if self.lay_norm else observation
+        out = self.ln(observations) if self.lay_norm else observations
 
         zsL = []
         for lin,ln in zip(self.linL,self.lnL):
@@ -65,13 +65,6 @@ class ACSharedActorModule(Module):
 
         logits = self.logits(out)
         probs = torch.nn.functional.softmax(input=logits, dim=-1)
-
-        """
-        max_probs = tf.reduce_max(action_prob, axis=-1) # max action_probs
-        min_probs = tf.reduce_min(action_prob, axis=-1) # min action_probs
-        amax_prob = tf.reduce_mean(max_probs) # average of batch max action_prob
-        amin_prob = tf.reduce_mean(min_probs) # average of batch min action_prob
-        """
 
         value = torch.sum(qvs * probs) # value of observation (next_observation)
 
@@ -85,29 +78,29 @@ class ACSharedActorModule(Module):
 
     def loss(
             self,
-            observation: TNS,
-            action_taken: TNS,
-            qv_label: TNS, # label of Q(s,a), computed from: reward + gamma*V_next_action
+            observations: TNS,
+            actions_taken: TNS,
+            qv_labels: TNS, # label of Q(s,a), computed from: reward + gamma*V_next_action
     ) -> DTNS:
 
-        out = self(observation)
+        out = self(observations)
         logits = out['logits']
         qvs = out['qvs']
 
-        qv = qvs[range(len(action_taken)),action_taken]
+        qv = qvs[range(len(actions_taken)),actions_taken]
 
         if self.use_scaled_ce:
             actor_ce_scaled = scaled_cross_entropy(
-                labels= action_taken,
+                labels= actions_taken,
                 scale=  qv,
                 probs=  out['probs'])
         else:
-            actor_ce = torch.nn.functional.cross_entropy(logits, action_taken, reduction='none')
+            actor_ce = torch.nn.functional.cross_entropy(logits, actions_taken, reduction='none')
             actor_ce_scaled = actor_ce * qv
 
         loss_actor = torch.mean(actor_ce_scaled)
 
-        diff = qv_label - qv
+        diff = qv_labels - qv
         loss_critic = torch.mean(diff * diff)
 
         loss = loss_actor + loss_critic

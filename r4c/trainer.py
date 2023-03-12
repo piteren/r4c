@@ -28,10 +28,10 @@ class ExperienceMemory:
 
     def _init_mem(self):
         self._mem = {
-            'observations':         None, # np.ndarray of floats (2 dim)
+            'observations':         None, # np.ndarray of NUM (2 dim)
             'actions':              None, # np.ndarray of ints
             'rewards':              None, # np.ndarray of floats
-            'next_observations':    None, # np.ndarray of floats (2 dim)
+            'next_observations':    None, # np.ndarray of NUM (2 dim)
             'terminals':            None, # np.ndarray of bool
             'wons':                 None} # np.ndarray of bool
 
@@ -49,7 +49,7 @@ class ExperienceMemory:
         # trim if needed
         if self.max_size and len(self) > self.max_size:
             for k in self._mem:
-                self._mem[k] = self._mem[k][:self.max_size]
+                self._mem[k] = self._mem[k][-self.max_size:]
 
     # returns random sample of non-duplicates from memory
     def get_sample(self, n:int) -> Dict[str,np.ndarray]:
@@ -129,13 +129,14 @@ class RLTrainer(ABC):
             break_terminal: bool,   # for True breaks play at terminal state
             exploration: float,
             sampled: float,
-            render: bool
+            render: bool,
     ) -> Tuple[
-            List[np.ndarray],   # observations
-            List[NUM],          # actions
-            List[float],        # rewards
-            List[bool],         # terminals
-            List[bool]]:        # wons
+        List[np.ndarray],   # observations
+        List[NUM],          # actions
+        List[float],        # rewards
+        List[bool],         # terminals
+        List[bool],         # wons
+    ]:
 
         self._rlog.log(5,f'playing for {steps} steps..')
 
@@ -149,21 +150,21 @@ class RLTrainer(ABC):
 
         while len(actions) < steps:
 
-            observation, action, reward, is_terminal, won = self._exploratory_move(
+            observation, action, reward = self._exploratory_move(
                 exploration=    exploration,
                 sampled=        sampled)
 
+            is_terminal = self.envy.is_terminal()
             observations.append(observation)
             actions.append(action)
             rewards.append(reward)
             terminals.append(is_terminal)
-            wons.append(won)
+            wons.append(self.envy.won())
 
             if render: self.envy.render()
 
-            if is_terminal:
-                if break_terminal: break
-                self.envy.reset()
+            if is_terminal and break_terminal:
+                break
 
         self._rlog.log(5,f'played {len(actions)} steps (break_terminal is {break_terminal})')
         return observations, actions, rewards, terminals, wons
@@ -179,7 +180,8 @@ class RLTrainer(ABC):
         List[np.ndarray],   # observations
         List[NUM],          # actions
         List[float],        # rewards
-        bool]:              # won
+        bool,               # won
+    ]:
 
         if max_steps is None and self.envy.get_max_steps() is None:
             raise RLException('Cannot play episode for Envy where max_steps is None and given max_steps is None')
@@ -194,23 +196,33 @@ class RLTrainer(ABC):
 
         return observations, actions, rewards, wons[-1]
 
-    # performs one Actor move (action)
+    # performs one Actor move (observation -> action -> reward)
     def _exploratory_move(
             self,
             exploration=    0.0, # prob pf exploration
             sampled=        0.0, # prob of sampling (vs argmax)
-    ) -> Tuple[np.ndarray,NUM,float,bool,bool]:
+    ) -> Tuple[
+        np.ndarray, # observation
+        NUM,        # action
+        float,      # reward
+    ]:
 
+        # reset Envy if needed
+        if self.envy.is_terminal():
+            self.envy.reset()
+
+        # prepare observation vector
         pre_action_observation = self.envy.get_observation()
-        observation_vec = self.actor.get_observation_vec(pre_action_observation)
+        obs_vec = self.actor.observation_vector(pre_action_observation)
 
+        # get and run action
         if np.random.rand() < exploration: action = self._get_exploring_action()
         else:                              action = self.actor.get_policy_action(
-                                                        observation=    observation_vec,
+                                                        observation=    obs_vec,
                                                         sampled=        np.random.rand() < sampled)
-        reward, is_terminal, won = self.envy.run(action)
+        reward = self.envy.run(action)
 
-        return observation_vec, action, reward, is_terminal, won
+        return obs_vec, action, reward
 
     # trainer selects exploring action (with Trainer exploratory policy)
     @abstractmethod
@@ -265,19 +277,10 @@ class RLTrainer(ABC):
                 n_batch_actions += na
                 n_actions += na
 
-                last_obs = self.actor.get_observation_vec(self.envy.get_observation())
+                last_obs = self.actor.observation_vector(self.envy.get_observation())
                 next_observations = observations[1:] + [last_obs]
 
-                print(observations)
-                print(actions)
-                print(rewards)
-                print(next_observations)
-                print(terminals)
-                print(wons)
-                print()
-
                 # INFO: not all algorithms (QLearning,PG,AC) need all the data below (we store 'more' just in case)
-                # TODO: check types of all
                 self.memory.add(experience={
                     'observations':         observations,
                     'actions':              actions,
@@ -311,10 +314,10 @@ class RLTrainer(ABC):
 
             if self._tbwr:
                 for k,v in upd_metrics.items():
-                    if k not in ['value','advantage','qvs']: # TODO <- those are here as Tensors with shape [256] - not value - not Ok for TB <- fix it
-                        #print(v.shape)
-                        #print(k,v)
-                        self._tbwr.add(value=v, tag=f'actor_upd/{k}', step=self._upd_step)
+                    #if k not in ['value','advantage','qvs']: # TODO <- those are here as Tensors with shape [256] - not value - not Ok for TB <- fix it
+                    #print(v.shape)
+                    #print(k,v)
+                    self._tbwr.add(value=v, tag=f'actor_upd/{k}', step=self._upd_step)
 
             # test Actor
             if upd_ix % test_freq == 0:

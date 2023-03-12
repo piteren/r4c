@@ -1,14 +1,20 @@
 from abc import abstractmethod, ABC
 import numpy as np
-from typing import List, Tuple, Optional
-
 from pypaq.lipytools.pylogger import get_pylogger
+from typing import List, Optional
+
 from r4c.helpers import RLException, NUM
 
 
 
 # base Environment interface
 class Envy(ABC):
+    """
+    Such concept of Envy assumes that user (Trainer, Actor) is responsible for
+    resetting the Envy after reaching terminal state (e.g. before calling run()).
+    Implementation of Envy that manages reset by itself probably will work fine,
+    but may differ e.g. when asked for observation after terminal state reached.
+    """
 
     def __init__(
             self,
@@ -21,22 +27,30 @@ class Envy(ABC):
         self._log.info(f'> seed:      {self.seed}')
         self._log.info(f'> max steps: {self.get_max_steps()}')
 
-    # plays action, goes to new state
-    @abstractmethod
-    def run(self, action:object) -> None: pass
-
     # returns observation of current state
     @abstractmethod
     def get_observation(self) -> object: pass
 
-    # resets Envy (self) to initial state with given seed
+    # plays action, goes to new state, may return something
     @abstractmethod
-    def _reset_with_seed(self, seed:int): pass
+    def run(self, action:object) -> object: pass
 
-    # resets Envy (self) to initial state
+    # is Envy currently in terminal state
+    @abstractmethod
+    def is_terminal(self) -> bool: pass
+
+    # is Envy currently in terminal state + user won episode
+    @abstractmethod
+    def won(self) -> bool: pass
+
+    # resets Envy to initial state, seed is managed by Envy
     def reset(self):
-        self._reset_with_seed(seed=self.seed)
+        self.reset_with_seed(seed=self.seed)
         self.seed += 1
+
+    # resets Envy to initial state with given seed
+    @abstractmethod
+    def reset_with_seed(self, seed:int): pass
 
     # returns max number of steps in one episode, None means infinite
     @abstractmethod
@@ -46,29 +60,29 @@ class Envy(ABC):
 # adds to Envy methods needed by base RL algorithms (used by Actor or Trainer)
 class RLEnvy(Envy, ABC):
 
-    def run(self, action:NUM) -> Tuple[
-        float,  # reward
-        bool,   # is terminal
-        bool    # has won
-    ]:
+    # plays action, goes to new state, returns reward
+    def run(self, action:NUM) -> float:
         """
-        RLEnvy returns reward after each step (run). This value may (should?) be processed / overridden by Trainer.
-        Trainer is supposed to train Actor using information of reward that he defines / corrects observing an Envy.
-        He may apply discount, factor, moving average etc. to those values.
-        (Actor does not need reward to act with policy.)
+        RLEnvy returns reward after each step (run).
+        This value may (should?) be processed / overridden by Trainer.
+        Trainer is supposed to train Actor using information of reward
+        that he defines / corrects while observing an Envy,
+        he may apply discount, factor, moving average etc. to reward returned by Envy.
+        (Actor does not need a reward to act with policy.)
         """
         pass
 
     # Envy current state rendering (for debug, preview etc.)
     def render(self): pass
 
-    # prepares numpy vector from observation
-    def prep_observation_vec(self, observation:object) -> np.ndarray:
+    # prepares numpy vector of NUM from given observation object
+    def observation_vector(self, observation:object) -> np.ndarray:
         """
-        it may be implemented by RLEnvy, but is not mandatory
-        otherwise Actor should implement on itself since it is in fact Actor duty
+        It may be implemented by RLEnvy, but is not mandatory,
+        otherwise Actor should implement on itself since it is in fact Actor duty.
+        Be careful of dtype and values, NN may not accept dtype==int.
         """
-        raise RLException('RLEnvy not implemented prep_observation_vec()')
+        raise RLException('RLEnvy not implemented observation_vector()')
 
 
 # interface of RL Environment with finite actions number

@@ -1,8 +1,7 @@
 import numpy as np
 from torchness.motorch import Module
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 
-from r4c.helpers import extract_from_batch
 from r4c.policy_gradients.pg_actor import PGActor
 from r4c.policy_gradients.actor_critic.ac_critic_module import ACCriticModule
 from r4c.helpers import RLException
@@ -21,37 +20,27 @@ class ACCritic(PGActor):
             module_type=    module_type,
             **kwargs)
 
-    # Critic does not have policy
-    def get_policy_probs(self, observation: object) -> np.ndarray:
+    # Critic does not have a policy
+    def get_policy_probs(self, observation:np.ndarray) -> np.ndarray:
         raise RLException('not implemented since should not be called')
 
-    # TODO: what about shape, does it work?
-    def get_qvs(self, observation) -> np.ndarray:
-        obs_vec = self.get_observation_vec(observation)
-        out = self.model(obs_vec)
-        return out['qvs'].detach().cpu().numpy()
 
-
-    def get_qvs_batch(self, observations) -> np.ndarray:
-        obs_vecs = self._get_observation_vec_batch(observations)
-        out = self.model(obs_vecs)
+    def get_qvs_batch(self, observations:np.ndarray) -> np.ndarray:
+        out = self.model(observations=observations)
         return out['qvs'].detach().cpu().numpy()
 
 
     def update_with_experience(
             self,
-            batch: List[Dict[str, Any]],
+            batch: Dict[str,np.ndarray],
             inspect: bool
     ) -> Dict[str, Any]:
 
-        observations = extract_from_batch(batch, 'observation')
-        obs_vecs = self._get_observation_vec_batch(observations)
-
         out = self.model.backward(
-            observation=        obs_vecs,
-            action_taken_OH=    extract_from_batch(batch, 'action_OH'),
-            next_action_qvs=    extract_from_batch(batch, 'next_action_qvs'),
-            next_action_probs=  extract_from_batch(batch, 'next_action_probs'),
-            reward=             extract_from_batch(batch, 'reward'))
+            observations=       batch['observations'],
+            actions_taken_OH=   batch['actions_OH'],
+            next_actions_qvs=   batch['next_actions_qvs'],
+            next_actions_probs= batch['next_actions_probs'],
+            rewards=            batch['rewards'])
         out.pop('qvs')
         return out

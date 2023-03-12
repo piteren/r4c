@@ -1,16 +1,3 @@
-"""
-
- 2022 (c) piteren
-
-    QTableActor: QLearningActor with QTable
-
-    QTableActor may be trained by QLearningTrainer. Trainer is responsible for computation of new QV for an Actor.
-    Actor on the other side has its own QV update_rate, which works as a kind of Actor-specific learning ratio.
-    Learning process is mainly directed by Trainer with possible little override by an Actor.
-    Actor is responsible for computation of its loss.
-
-"""
-
 import numpy as np
 from typing import Hashable, Dict, List
 
@@ -25,12 +12,15 @@ class QTable:
         self.__table: Dict[Hashable, np.ndarray] = {}  # {observation_hash: QVs}
         self.__keys: List[np.ndarray] = []
 
+    # baseline hash of np.ndarray
     @staticmethod
     def __hash(observation:np.ndarray) -> str:
         return str(observation)
 
+
     def __init_hash(self, ha:str):
         self.__table[ha] = np.zeros(self.__width, dtype=float)
+
 
     def get_QVs(self, observation:np.ndarray) -> np.ndarray:
         ha = QTable.__hash(observation)
@@ -38,6 +28,7 @@ class QTable:
             self.__init_hash(ha)
             self.__keys.append(observation)
         return self.__table[ha]
+
 
     def put_QV(self,
             observation: np.ndarray,
@@ -49,6 +40,7 @@ class QTable:
             self.__keys.append(observation)
         self.__table[ha][action] = new_qv
 
+
     def __str__(self):
         s = f'length: {len(self.__table) if self.__table else "<empty>"}\n'
         if self.__table:
@@ -59,6 +51,13 @@ class QTable:
 
 # implements QLearningActor with QTable
 class QTableActor(QLearningActor):
+    """
+    QTableActor may be trained by QLearningTrainer.
+    Trainer is responsible for computation of new QV for an Actor.
+    Actor on the other side has its own QV update_rate, which works as a kind of Actor-specific learning ratio,
+    learning process is then mainly directed by Trainer with possible little override by an Actor.
+    Actor is responsible for computation of its loss.
+    """
 
     def __init__(
             self,
@@ -72,32 +71,44 @@ class QTableActor(QLearningActor):
         self.__qtable = QTable(self._envy.num_actions())
         self._update_rate = None # needs to be set before update
 
+
     def set_update_rate(self, update_rate:float):
         self._update_rate = update_rate
         self._rlog.info(f'> QTableActor set update_rate to: {self._update_rate}')
 
+
     def _get_QVs(self, observation:np.ndarray) -> np.ndarray:
         return self.__qtable.get_QVs(observation)
 
+    # updates QV and returns ~loss
     def _upd_QV(
             self,
             observation: np.ndarray,
             action: int,
             new_qv: float) -> float:
-        if self._update_rate is None: raise RLException('Trainer needs to set update_rate of QLearningActor before training!')
+
+        if self._update_rate is None:
+            msg = 'update_rate needs to be set before training'
+            self._rlog.error(msg)
+            raise RLException(msg)
+
         old_qv = self._get_QVs(observation)[action]
         diff = new_qv - old_qv
         self.__qtable.put_QV(
             observation=    observation,
             action=         action,
             new_qv=         old_qv + self._update_rate * diff)
+
         return abs(diff)
+
 
     def _get_save_topdir(self) -> str:
         return self._save_topdir
 
+
     def save(self):
         raise RLException('not implemented')
+
 
     def __str__(self):
         return f'QTableActor, QTable:\n{self.__qtable.__str__()}'

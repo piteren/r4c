@@ -1,7 +1,7 @@
 import numpy as np
 from pypaq.lipytools.plots import two_dim_multi
 
-from r4c.helpers import zscore_norm, extract_from_batch, discounted_return, movavg_return
+from r4c.helpers import zscore_norm, discounted_return, movavg_return
 from r4c.policy_gradients.pg_actor import PGActor
 from r4c.trainer import FATrainer
 
@@ -31,31 +31,34 @@ class PGTrainer(FATrainer):
     # PGActor update method
     def _update_actor(self, inspect:bool=False) -> dict:
 
-        # get all and flush
         batch = self.memory.get_all()
-        self.memory.clear()
-
-        observations = extract_from_batch(batch, 'observation')
-        actions =      extract_from_batch(batch, 'action')
-        rewards =      extract_from_batch(batch, 'reward')
-        terminals =    extract_from_batch(batch, 'terminal')
 
         # ********************************************************************************************* prepare dreturns
 
         # split rewards into episodes
         episode_rewards = []
         cep = []
-        for r,t in zip(rewards,terminals):
+        for r,t in zip(batch['rewards'], batch['terminals']):
             cep.append(r)
             if t:
                 episode_rewards.append(cep)
                 cep = []
         if cep: episode_rewards.append(cep)
 
+        dreturns = []
+        if self.use_mavg:
+            for rs in episode_rewards:
+                dreturns += movavg_return(rewards=rs, factor=self.movavg_factor)
+        else:
+            for rs in episode_rewards:
+                dreturns += discounted_return(rewards=rs, discount=self.discount)
+        if self.do_zscore:
+            dreturns = zscore_norm(dreturns)
+        batch['dreturns'] = np.asarray(dreturns)
+
         if inspect:
 
-            obs_arr = np.asarray(observations)
-            oL = np.split(obs_arr, obs_arr.shape[-1], axis=-1)
+            oL = np.split(batch['observations'], batch['observations'].shape[-1], axis=-1)
 
             two_dim_multi(
                 ys=     oL,
@@ -72,7 +75,7 @@ class PGTrainer(FATrainer):
 
             two_dim_multi(
                 ys=     [
-                    rewards,
+                    batch['rewards'],
                     ret_mavg,
                     ret_disc,
                     ret_mavg_norm,
@@ -85,20 +88,6 @@ class PGTrainer(FATrainer):
                     'ret_disc_norm'],
                 legend_loc= 'lower left')
 
-        dreturns = []
-        if self.use_mavg:
-            for rs in episode_rewards:
-                dreturns += movavg_return(rewards=rs, factor=self.movavg_factor)
-        else:
-            for rs in episode_rewards:
-                dreturns += discounted_return(rewards=rs, discount=self.discount)
-        if self.do_zscore:
-            dreturns = zscore_norm(dreturns)
-
-        batch = [{
-            'observation':  o,
-            'action':       a,
-            'dreturn':      d} for o,a,d in zip(observations,actions,dreturns)]
         return self.actor.update_with_experience(
             batch=      batch,
             inspect=    inspect)

@@ -71,9 +71,9 @@ class A2CModule(Module):
         self.use_scaled_ce = use_scaled_ce
         self.use_huber = use_huber
 
-    def forward(self, observation:TNS) -> DTNS:
+    def forward(self, observations:TNS) -> DTNS:
 
-        inp = self.ln(observation) if self.lay_norm else observation
+        inp = self.ln(observations) if self.lay_norm else observations
 
         zsL = []
         out = inp
@@ -103,17 +103,17 @@ class A2CModule(Module):
 
     def loss(
             self,
-            observation: TNS,
-            action_taken: TNS,
-            dreturn: TNS,
+            observations: TNS,
+            actions_taken: TNS,
+            dreturns: TNS,
     ) -> DTNS:
 
-        out = self(observation)
+        out = self(observations)
 
         value = out['value']
         logits = out['logits']
 
-        advantage = dreturn - value
+        advantage = dreturns - value
 
         advantage_nograd = advantage.detach() # to prevent flow of Actor loss gradients to Critic network
         if self.clamp_advantage is not None:
@@ -124,16 +124,16 @@ class A2CModule(Module):
 
         if self.use_scaled_ce:
             actor_ce_scaled = scaled_cross_entropy(
-                labels= action_taken,
+                labels= actions_taken,
                 scale=  advantage_nograd,
                 probs=  out['probs'])
         else:
-            actor_ce = torch.nn.functional.cross_entropy(logits, action_taken, reduction='none')
+            actor_ce = torch.nn.functional.cross_entropy(logits, actions_taken, reduction='none')
             actor_ce_scaled = actor_ce * advantage_nograd
 
         loss_actor_scaled_mean = torch.mean(actor_ce_scaled)
 
-        if self.use_huber: loss_critic = torch.nn.functional.huber_loss(value, dreturn, reduction='none')
+        if self.use_huber: loss_critic = torch.nn.functional.huber_loss(value, dreturns, reduction='none')
         else:              loss_critic = advantage * advantage  # MSE
 
         loss_critic_mean = torch.mean(loss_critic)

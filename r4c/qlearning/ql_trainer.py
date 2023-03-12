@@ -25,13 +25,13 @@ class QLearningTrainer(FATrainer):
 
         batch = self.memory.get_sample(self.batch_size)
 
-        no_qvs = self.actor.get_QVs_batch(batch['next_observations'])
+        next_observations_qvs = self.actor.get_QVs_batch(batch['next_observations'])
 
-        no_qvs_terminal = np.zeros(self.envy.num_actions())
+        qvs_terminal = np.zeros(self.envy.num_actions())
         for ix,t in enumerate(batch['terminals']):
-            if t: no_qvs[ix] = no_qvs_terminal
+            if t: next_observations_qvs[ix] = qvs_terminal
 
-        new_qvs = [r + self.gamma * max(no_qvs) for r, no_qvs in zip(batch['rewards'], no_qvs)]
+        new_qvs = [r + self.gamma * max(no_qvs) for r, no_qvs in zip(batch['rewards'], next_observations_qvs)]
         batch['new_qvs'] = np.asarray(new_qvs)
 
         return self.actor.update_with_experience(

@@ -1,10 +1,10 @@
 from abc import abstractmethod, ABC
 import numpy as np
+from pypaq.lipytools.softmax import softmax
 from typing import Dict, Any
 
 from r4c.actor import TrainableActor
 from r4c.envy import FiniteActionsRLEnvy
-from pypaq.lipytools.softmax import softmax
 
 
 # QLearningActor, supports finite actions space environments (FiniteActionsRLEnvy)
@@ -33,7 +33,7 @@ class QLearningActor(TrainableActor, ABC):
     def get_QVs_batch(self, observations:np.ndarray) -> np.ndarray:
         return np.asarray([self._get_QVs(o) for o in observations])
 
-
+    # returns action based on QVs
     def get_policy_action(
             self,
             observation: np.ndarray,
@@ -47,7 +47,7 @@ class QLearningActor(TrainableActor, ABC):
 
         return int(np.argmax(qvs))
 
-    # updates QV for given observation and action (single observation/action), returns Actor "metric" - loss etc. (float)
+    # updates QV for given observation and action
     @abstractmethod
     def _upd_QV(
             self,

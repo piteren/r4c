@@ -1,9 +1,9 @@
 from abc import abstractmethod, ABC
 import numpy as np
-from typing import Optional, Dict, Any, List, Union
-
 from pypaq.lipytools.printout import stamp
 from pypaq.lipytools.pylogger import get_pylogger
+from typing import Optional, Dict, Any
+
 from r4c.envy import RLEnvy
 from r4c.helpers import RLException, NUM
 
@@ -36,13 +36,13 @@ class TrainableActor(Actor, ABC):
         self._rlog.info(f'*** TrainableActor *** initialized')
         self._rlog.info(f'> name:              {self.name}')
         self._rlog.info(f'> Envy:              {self._envy.__class__.__name__}')
-        self._rlog.info(f'> observation width: {self.get_observation_vec(self._envy.get_observation()).shape[-1]}')
+        self._rlog.info(f'> observation width: {self.observation_vector(self._envy.get_observation()).shape[-1]}')
         self._rlog.info(f'> not used kwargs:   {kwargs}')
 
-    # prepares numpy vector from observation, first tries to get from RLEnvy
-    def get_observation_vec(self, observation: object) -> np.ndarray:
+    # prepares numpy vector from observation in type accepted by self, first tries to get from RLEnvy
+    def observation_vector(self, observation:object) -> np.ndarray:
         try:
-            return self._envy.prep_observation_vec(observation)
+            return self._envy.observation_vector(observation)
         except RLException:
             raise RLException ('TrainableActor should implement get_observation_vec()')
 
@@ -58,14 +58,14 @@ class TrainableActor(Actor, ABC):
             inspect: bool,
     ) -> Dict[str,Any]:
         """
-        updates (self) policy with 'batch' of experience data
-        returns dict with some update "metrics" like a loss etc.
-        those metrics may be used by RLTrainer for publish, monitoring, training process update..
-        currently supported:
+        Updates (self) policy with 'batch' of experience data.
+        Returns dict with some update "metrics" like a loss etc.
+        Those metrics may be used by RLTrainer for publish, monitoring, training process update etc.
+        Currently supported:
         - any number (float?) will be published to TB (with key from dict and Trainer._upd_step)
         - 'probs' Tensor will be published to TB with avg_probs()
         - 'zeroes' will be published by Trainer._zepro
-        other have to be removed and may be eventually inspected by an Actor
+        Other have to be removed and may be eventually inspected by an Actor
         """
         pass
 
