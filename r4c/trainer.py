@@ -82,6 +82,10 @@ class RLTrainer(ABC):
     Implements generic RL training procedure -> train()
     This procedure is valid for some RL algorithms (QTable, PG, AC)
     and may be overridden with custom implementation.
+    Its is build with a loop where Trainer:
+    1. plays with Actor on Envy to get a batch of experience data (stored in memory)
+    2. updates an Actor (policy or Value function) and processes some metrics returned
+    3. tests (evaluates) an actor on Environment
     """
 
     def __init__(
@@ -233,7 +237,7 @@ class RLTrainer(ABC):
     @abstractmethod
     def _get_exploring_action(self) -> NUM: pass
 
-    # generic RL training procedure, returns dict with some training stats
+    # RL training procedure, returns dict with some training stats
     def train(
             self,
             num_updates: int,                       # number of training updates
@@ -267,7 +271,8 @@ class RLTrainer(ABC):
         stime = time.time()
         for upd_ix in range(num_updates):
 
-            # get a batch of data (play)
+            ### 1. get a batch of data (play)
+
             n_batch_actions = 0
             while n_batch_actions < self.batch_size:
 
@@ -287,7 +292,7 @@ class RLTrainer(ABC):
                 last_obs = self.actor.observation_vector(self.envy.get_observation())
                 next_observations = observations[1:] + [last_obs]
 
-                # experience data used to update Actor
+                # store experience data used to update Actor
                 self.memory.add(experience={
                     'observations':         observations,
                     'actions':              actions,
@@ -296,16 +301,14 @@ class RLTrainer(ABC):
                     'terminals':            terminals,
                     'wons':                 wons})
 
-                if terminals[-1]:
-                    n_terminals += 1 # ..may not be terminal when limit of n_batch_actions reached
-                if wons[-1]:
-                    n_won += 1
+                if terminals[-1]: n_terminals += 1
+                if wons[-1]:      n_won += 1
 
                 self._rlog.debug(f' >> Trainer gots {len(observations):3} observations after play and {len(self.memory):3} in memory, n_batch_actions: {n_batch_actions}' )
 
                 if upd_on_episode: break
 
-            ### update Actor & process metrics
+            ### 2. update an Actor & process metrics
 
             upd_metrics = self._update_actor(inspect=inspect and upd_ix % test_freq == 0)
             self._upd_step += 1
@@ -324,7 +327,8 @@ class RLTrainer(ABC):
                 for k,v in upd_metrics.items():
                     self._tbwr.add(value=v, tag=f'actor_upd/{k}', step=self._upd_step)
 
-            # test Actor
+            ### 3. test an Actor
+
             if upd_ix % test_freq == 0:
 
                 # single episode

@@ -54,28 +54,35 @@ class ACTrainer(PGTrainer):
 
         next_actions_probs = self.actor.get_policy_probs(batch['next_observations']) # get next_observations actions_probs (with Actor policy)
 
-        # get QVs of current observations
-        qvs = self.critic.get_qvs(batch['observations'])
-        qv_actions = qvs[np.arange(batch['actions'].shape[-1]), batch['actions']] # get QV of selected actions
-        batch['dreturns'] = qv_actions
+        # get QV of action
+        qvs = self.critic.get_qvs(batch['observations']) # QVs of current observations
+        batch['dreturns'] = qvs[np.arange(batch['actions'].shape[-1]), batch['actions']] # get QV of selected actions
 
-        # update Actor
+        # update Actor (like in PG, but dreturns come from Critic QV)
         metrics = self.actor.update_with_experience(
             batch=      batch,
             inspect=    inspect)
 
-        actions_OH = self._actions_OH_encoding(batch['actions'])
+        #actions_OH = self._actions_OH_encoding(batch['actions'])
 
-        # get QVs of next observations
+        # get QVs of next observations, those come without gradients, which is ok - no target backpropagation
         next_observations_qvs = self.critic.get_qvs(batch['next_observations'])
-
         update_terminal_QVs(
             qvs=        next_observations_qvs,
             terminals=  batch['terminals'])
 
-        batch['actions_OH'] = actions_OH
         batch['next_observations_qvs'] = next_observations_qvs
         batch['next_actions_probs'] = next_actions_probs
+
+        # update Critic
+        crt_metrics = self.critic.update_with_experience(
+            batch=      batch,
+            inspect=    inspect)
+
+        # merge Critic metrics
+        metrics['zeroes'] += crt_metrics.pop('zeroes')
+        for k in crt_metrics:
+            metrics[f'critic_{k}'] = crt_metrics[k]
 
         # TODO: replace prints with logger
         """
@@ -92,15 +99,5 @@ class ACTrainer(PGTrainer):
             print(f'actions_OH {actions_OH.shape}, {actions_OH[0]}')
             print(f'next_observations_qvs {next_observations_qvs.shape}, {next_observations_qvs[0]}')
         """
-
-        # update Critic
-        crt_metrics = self.critic.update_with_experience(
-            batch=      batch,
-            inspect=    inspect)
-
-        metrics['zeroes'] += crt_metrics.pop('zeroes')
-
-        for k in crt_metrics:
-            metrics[f'critic_{k}'] = crt_metrics[k]
 
         return metrics

@@ -56,7 +56,7 @@ class QLearningActor(TrainableActor, ABC):
             action: int,
             new_qv: float) -> float: pass
 
-    # updates QV
+    # updates QV, loss for QLearning may be TD Error (Temporal Difference Error)
     def update_with_experience(
             self,
             batch: Dict[str,np.ndarray],

@@ -37,7 +37,7 @@ class ACCritic(PGActor):
 
         out = self.model.backward(
             observations=           batch['observations'],
-            actions_taken_OH=       batch['actions_OH'],
+            actions_taken=          batch['actions'],
             next_observations_qvs=  batch['next_observations_qvs'],
             next_actions_probs=     batch['next_actions_probs'],
             rewards=                batch['rewards'])

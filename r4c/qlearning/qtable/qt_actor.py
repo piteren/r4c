@@ -86,7 +86,7 @@ class QTableActor(QLearningActor):
     def _get_QVs(self, observation:np.ndarray) -> np.ndarray:
         return self.__qtable.get_QVs(observation)
 
-    # updates QV and returns ~loss
+    # updates QV and returns ~loss (TD Error)
     def _upd_QV(
             self,
             observation: np.ndarray,
@@ -99,7 +99,7 @@ class QTableActor(QLearningActor):
             raise RLException(msg)
 
         old_qv = self._get_QVs(observation)[action]
-        diff = new_qv - old_qv
+        diff = new_qv - old_qv # TD Error
         self.__qtable.put_QV(
             observation=    observation,
             action=         action,

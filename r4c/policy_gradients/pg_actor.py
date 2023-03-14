@@ -79,5 +79,9 @@ class PGActor(TrainableActor, ABC):
         self.model.save()
 
 
+    def load(self):
+        self.model.load()
+
+
     def __str__(self):
         return self.model.__str__()

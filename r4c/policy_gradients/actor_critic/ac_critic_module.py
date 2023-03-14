@@ -65,19 +65,18 @@ class ACCriticModule(Module):
     def loss(
             self,
             observations: TNS,
-            actions_taken_OH: TNS, # one-hot vector of action taken
+            actions_taken: TNS,
             next_observations_qvs: TNS,
             next_actions_probs: TNS,
             rewards: TNS
     ) -> DTNS:
 
         out = self(observations)
-        qvs = out['qvs']
 
-        qv = torch.sum(qvs * actions_taken_OH, dim=-1)
-        next_V = torch.sum(next_observations_qvs * next_actions_probs, dim=-1) # V(next_s)
-        labels = rewards + self.gamma * next_V
-        diff = labels - qv
+        next_state_V = torch.sum(next_observations_qvs * next_actions_probs, dim=-1)
+        target_QV = rewards + self.gamma * next_state_V
+        qv = out['qvs'][range(len(actions_taken)),actions_taken]
+        diff = target_QV - qv
         loss = torch.mean(diff * diff) # MSE
 
         out.update({'loss': loss})
