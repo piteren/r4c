@@ -2,7 +2,7 @@ import numpy as np
 from pypaq.lipytools.moving_average import MovAvg
 from typing import List, Union
 
-NUM = Union[int,float]
+NUM = Union[int, float, np.ndarray]
 
 
 # Reinforcement Learning Exception

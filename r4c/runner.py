@@ -1,19 +1,15 @@
-from abc import abstractmethod, ABC
 import numpy as np
 from pypaq.lipytools.pylogger import get_pylogger
 from pypaq.lipytools.moving_average import MovAvg
 import time
-from torchness.tbwr import TBwr
-from torchness.comoneural.avg_probs import avg_mm_probs
-from torchness.comoneural.zeroes_processor import ZeroesProcessor
-from typing import List, Tuple, Optional, Dict, Any, Union
+from typing import List, Tuple, Optional, Dict, Union
 
-from r4c.envy import RLEnvy, FiniteActionsRLEnvy
+from r4c.envy import RLEnvy
 from r4c.actor import TrainableActor
 from r4c.helpers import RLException, NUM
 
 
-# Trainer Experience Memory
+# Runner Experience Memory
 class ExperienceMemory:
     """
     Experience Memory stores data generated while Actor plays with its policy on Envy.
@@ -33,14 +29,14 @@ class ExperienceMemory:
     def _init_mem(self):
         self._mem = {
             'observations':         None, # np.ndarray of NUM (2 dim)
-            'actions':              None, # np.ndarray of ints
+            'actions':              None, # np.ndarray of NUM
             'rewards':              None, # np.ndarray of floats
             'next_observations':    None, # np.ndarray of NUM (2 dim)
             'terminals':            None, # np.ndarray of bool
             'wons':                 None} # np.ndarray of bool
 
     # adds given experience
-    def add(self, experience:Dict[str, Union[List,np.ndarray]]):
+    def add(self, experience:Dict[str,Union[List,np.ndarray]]):
 
         # add or put
         for k in experience:
@@ -76,60 +72,30 @@ class ExperienceMemory:
         return len(self._mem['observations']) if self._mem['observations'] is not None else 0
 
 
-# Reinforcement Learning Trainer for Actor acting on RLEnvy
-class RLTrainer(ABC):
-    """
-    Implements generic RL training procedure -> train()
-    This procedure is valid for some RL algorithms (QTable, PG, AC)
-    and may be overridden with custom implementation.
-    Its is build with a loop where Trainer:
-    1. plays with Actor on Envy to get a batch of experience data (stored in memory)
-    2. updates an Actor (policy or Value function) and processes some metrics returned
-    3. tests (evaluates) an actor on Environment
-    """
+# Reinforcement Learning Runner runs TrainableActor on RLEnvy
+class RLRunner:
 
     def __init__(
             self,
             envy: RLEnvy,
             actor: TrainableActor,
-            batch_size: int,                    # Actor update batch data size
-            exploration: float,                 # train exploration factor
-            train_sampled: float,               # how often move is sampled (vs argmax) while training
-            mem_batches: Optional[int]= None,   # ExperienceMemory max size (in number of batches)
             seed: int=                  123,
             logger=                     None,
-            loglevel=                   20,
-            hpmser_mode=                False):
+            loglevel=                   20):
 
         self._rlog = logger or get_pylogger(level=loglevel)
         self._rlog.info(f'*** RLTrainer *** initializes..')
         self._rlog.info(f'> Envy:            {envy.__class__.__name__}')
         self._rlog.info(f'> Actor:           {actor.__class__.__name__}, name: {actor.name}')
-        self._rlog.info(f'> batch_size:      {batch_size}')
-        self._rlog.info(f'> memory max size: {batch_size*mem_batches if mem_batches else "None"}')
-        self._rlog.info(f'> exploration:     {exploration}')
-        self._rlog.info(f'> train_sampled:   {train_sampled}')
         self._rlog.info(f'> seed:            {seed}')
 
         self.envy = envy
         self.actor = actor
-        self.batch_size = batch_size
-        self.mem_max_size = self.batch_size * mem_batches if mem_batches else None
-        self.exploration = exploration
-        self.train_sampled = train_sampled
         self.memory: Optional[ExperienceMemory] = None
         self.seed = seed
         np.random.seed(self.seed)
-        self.hpmser_mode = hpmser_mode
 
-        self._tbwr = TBwr(logdir=self.actor.get_save_dir()) if not self.hpmser_mode else None
-        self._upd_step = 0 # global Trainer update step
-
-        self._zepro = ZeroesProcessor(
-            intervals=  (10,50,100),
-            tbwr=       self._tbwr) if not self.hpmser_mode else None
-
-    # plays Actor on Envy until N steps performed or terminal state reached, collects and returns experience
+    # plays Actor on Envy, collects and returns experience
     def play(
             self,
             reset: bool,            # for True starts play from the initial state
@@ -158,7 +124,7 @@ class RLTrainer(ABC):
 
         while len(actions) < steps:
 
-            observation, action, reward = self._exploratory_move(
+            observation, action, reward = self._move(
                 exploration=    exploration,
                 sampled=        sampled)
 
@@ -176,13 +142,41 @@ class RLTrainer(ABC):
         self._rlog.log(5,f'played {len(actions)} steps (break_terminal is {break_terminal})')
         return observations, actions, rewards, terminals, wons
 
-    # plays one episode from reset till terminal state or max_steps
-    def _play_episode(
+    # performs one Actor move (observation -> action -> reward)
+    def _move(
             self,
-            exploration: float,
-            sampled: float,
-            render: bool,
-            max_steps: Optional[int]=   None,  # if max steps is given then single play for max_steps is considered to be won
+            exploration: float, # exploration factor (probability)
+            sampled: float,     # sampling (vs argmax) factor (probability)
+    ) -> Tuple[
+        np.ndarray, # observation
+        NUM,        # action
+        float,      # reward
+    ]:
+
+        # eventually reset Envy
+        if self.envy.is_terminal():
+            self.envy.reset()
+
+        # prepare observation vector
+        pre_action_observation = self.envy.get_observation()
+        observation_vector = self.actor.observation_vector(pre_action_observation)
+
+        # get and run action
+        action = self.actor.get_action(
+            observation=    observation_vector,
+            explore=        np.random.rand() < exploration,
+            sample=         np.random.rand() < sampled)
+        reward = self.envy.run(action)
+
+        return observation_vector, action, reward
+
+    # plays one episode from reset till terminal state or max_steps
+    def play_episode(
+            self,
+            max_steps: Optional[int]=   None,
+            exploration: float=         0.0,
+            sampled: float=             0.0,
+            inspect: bool=              False,
     ) -> Tuple[
         List[np.ndarray],   # observations
         List[NUM],          # actions
@@ -199,63 +193,43 @@ class RLTrainer(ABC):
             break_terminal= True,
             exploration=    exploration,
             sampled=        sampled,
-            render=         render)
+            render=         inspect)
 
         return observations, actions, rewards, wons[-1]
-
-    # performs one Actor move (observation -> action -> reward)
-    def _exploratory_move(
-            self,
-            exploration=    0.0, # exploration factor (prob)
-            sampled=        0.0, # sampling (vs argmax) factor (prob)
-    ) -> Tuple[
-        np.ndarray, # observation
-        NUM,        # action
-        float,      # reward
-    ]:
-
-        # reset Envy if needed
-        if self.envy.is_terminal():
-            self.envy.reset()
-
-        # prepare observation vector
-        pre_action_observation = self.envy.get_observation()
-        obs_vec = self.actor.observation_vector(pre_action_observation)
-
-        # get and run action
-        if np.random.rand() < exploration:
-            action = self._get_exploring_action()
-        else:
-            action = self.actor.get_policy_action(
-                observation=    obs_vec,
-                sampled=        np.random.rand() < sampled)
-        reward = self.envy.run(action)
-
-        return obs_vec, action, reward
-
-    # trainer selects exploring action (with Trainer exploratory policy)
-    @abstractmethod
-    def _get_exploring_action(self) -> NUM: pass
 
     # RL training procedure, returns dict with some training stats
     def train(
             self,
             num_updates: int,                       # number of training updates
+            batch_size: int,                        # Actor update batch data size
+            mem_batches: Optional[int]=     None,   # ExperienceMemory max size (in number of batches)
+            sample_memory: bool=            False,  # sample batch from memory or get_all and reset
+            exploration: float=             0.0,    # exploration probability while building experience
+            sampled_TR: float=              0.0,    # sampling probability while building experience
+            sampled_PL: float=              0.0,    # sampling probability while playing
             upd_on_episode=                 False,  # updates on episode finish / terminal (does not wait till batch)
             test_freq=                      100,    # number of updates between test
             test_episodes: int=             100,    # number of testing episodes
             test_max_steps: Optional[int]=  None,   # max number of episode steps while testing
-            test_render: bool=              False,  # renders one episode while test
-            inspect: bool=                  False,  # for debug / research
+            inspect: bool=                  False,  # debug / research, inspects data while updating Actor and testing
             break_ntests: Optional[int]=    None,   # breaks training after all test episodes succeeded N times in a row
     ) -> dict:
+        """
+        Generic RL train procedure.
+        This procedure is valid for some RL algorithms (QTable, PG, AC),
+        its is build with a loop where Actor:
+        1. plays on Envy to get a batch of experience data (stored in memory)
+        2. is updated (policy or Value function) and returns some metrics
+        3. is tested (evaluated) on Environment
+        """
 
         self._rlog.info(f'Starting train for {num_updates} updates..')
 
+        mem_max_size = batch_size * mem_batches if mem_batches is not None else None
         self.memory = ExperienceMemory(
-            max_size=   self.mem_max_size,
+            max_size=   mem_max_size,
             seed=       self.seed)
-        self._rlog.info(f'> initialized ExperienceMemory of maxsize {self.mem_max_size}')
+        self._rlog.info(f'> initialized ExperienceMemory of max size {mem_max_size}')
 
         self.envy.reset()
 
@@ -274,15 +248,15 @@ class RLTrainer(ABC):
             ### 1. get a batch of data (play)
 
             n_batch_actions = 0
-            while n_batch_actions < self.batch_size:
+            while n_batch_actions < batch_size:
 
                 # plays till episode end, to allow update on episode
                 observations, actions, rewards, terminals, wons = self.play(
-                    steps=          self.batch_size - n_batch_actions,
+                    steps=          batch_size - n_batch_actions,
                     reset=          False,
                     break_terminal= True,
-                    exploration=    self.exploration,
-                    sampled=        self.train_sampled,
+                    exploration=    exploration,
+                    sampled=        sampled_TR,
                     render=         False)
 
                 na = len(actions)
@@ -310,11 +284,13 @@ class RLTrainer(ABC):
 
             ### 2. update an Actor & process metrics
 
-            upd_metrics = self._update_actor(inspect=inspect and upd_ix % test_freq == 0)
-            self._upd_step += 1
+            batch = self.memory.get_sample(batch_size) if sample_memory else self.memory.get_all()
+            loss = self.actor.update_with_experience(
+                batch=      batch,
+                inspect=    inspect and upd_ix % test_freq == 0)
+            lossL.append(loss_mavg.upd(loss))
 
-            if 'loss' in upd_metrics: lossL.append(loss_mavg.upd(upd_metrics['loss']))
-
+            """
             # process / monitor policy probs
             if self._tbwr and 'probs' in upd_metrics:
                 for k,v in avg_mm_probs(upd_metrics.pop('probs')).items():
@@ -326,21 +302,23 @@ class RLTrainer(ABC):
             if self._tbwr:
                 for k,v in upd_metrics.items():
                     self._tbwr.add(value=v, tag=f'actor_upd/{k}', step=self._upd_step)
+            """
 
             ### 3. test an Actor
 
             if upd_ix % test_freq == 0:
 
                 # single episode
-                observations, actions, rewards, won = self._play_episode(
+                observations, actions, rewards, won = self.play_episode(
+                    max_steps=      test_max_steps,
                     exploration=    0.0,
-                    sampled=        0.0,
-                    render=         test_render,
-                    max_steps=      test_max_steps)
+                    sampled=        sampled_PL,
+                    inspect=        inspect)
 
                 # few tests
                 avg_won, avg_return = self.test_on_episodes(
                     n_episodes=     test_episodes,
+                    sampled=        sampled_PL,
                     max_steps=      test_max_steps)
 
                 self._rlog.info(f'# {upd_ix:3} term:{n_terminals}(+{n_terminals-last_terminals}) -- TS: {len(actions)} actions, return {sum(rewards):.1f} ({"won" if won else "lost"}) -- {test_episodes}xTS: avg_won: {avg_won*100:.1f}%, avg_return: {avg_return:.1f} -- loss_actor: {loss_mavg():.4f}')
@@ -362,43 +340,21 @@ class RLTrainer(ABC):
             'n_won':                n_won,
             'succeeded_row_max':    succeeded_row_max}
 
-    # updates Actor policy, returns dict with Actor "metrics" (check Actor.update_with_experience())
-    def _update_actor(self, inspect:bool=False) -> Dict[str,Any]:
-        batch = self.memory.get_sample(self.batch_size)
-        return self.actor.update_with_experience(
-            batch=      batch,
-            inspect=    inspect)
-
     # plays n episodes, returns (won_factor, avg/reward)
     def test_on_episodes(
             self,
             n_episodes=                 100,
+            sampled=                    0.0,
             max_steps: Optional[int]=   None,
     ) -> Tuple[float, float]:
         n_won = 0
         sum_rewards = 0
         for e in range(n_episodes):
-            observations, actions, rewards, won = self._play_episode(
+            observations, actions, rewards, won = self.play_episode(
+                max_steps=      max_steps,
                 exploration=    0.0,
-                sampled=        0.0,
-                render=         False,
-                max_steps=      max_steps)
+                sampled=        sampled,
+                inspect=        False)
             n_won += int(won)
             sum_rewards += sum(rewards)
         return n_won/n_episodes, sum_rewards/n_episodes
-
-
-# FiniteActions RL Trainer (for Actor acting on FiniteActionsRLEnvy)
-class FATrainer(RLTrainer, ABC):
-
-    def __init__(self, envy:FiniteActionsRLEnvy, seed:int, **kwargs):
-        np.random.seed(seed)
-        RLTrainer.__init__(self, envy=envy, seed=seed, **kwargs)
-        self.envy = envy  # INFO: type "upgrade" for pycharm editor
-
-        self._rlog.info(f'*** FATrainer *** initialized')
-        self._rlog.info(f'> number of actions: {self.envy.num_actions()}')
-
-    # selects 100% random action from action space, (np. seed is fixed at Trainer)
-    def _get_exploring_action(self) -> int:
-        return int(np.random.choice(self.envy.num_actions()))

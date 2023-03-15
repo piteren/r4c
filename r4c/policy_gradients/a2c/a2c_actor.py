@@ -22,25 +22,24 @@ class A2CActor(PGActor):
             **kwargs)
 
 
-    def update_with_experience(
+    def _publish(
             self,
             batch: Dict[str,np.ndarray],
-            inspect: bool
-    ) -> Dict[str, Any]:
+            training_data: Dict[str,np.ndarray],
+            metrics: Dict[str,Any],
+    ) -> None:
 
-        actor_metrics = super().update_with_experience(batch,inspect)
+        value = metrics.pop('value')
+        advantage = metrics.pop('advantage')
 
-        if inspect:
+        super()._publish(batch, training_data, metrics)
+
+        if self.research_mode:
             ins_vals = {
                 'dreturns':     batch['dreturns'],
-                'value':        actor_metrics['value'].detach().cpu().numpy(),
-                'advantage':    actor_metrics['advantage'].detach().cpu().numpy()}
+                'value':        value.detach().cpu().numpy(),
+                'advantage':    advantage.detach().cpu().numpy()}
             two_dim_multi(
                 ys=         list(ins_vals.values()),
                 names=      list(ins_vals.keys()),
                 legend_loc= 'lower left')
-
-        actor_metrics.pop('value')
-        actor_metrics.pop('advantage')
-
-        return actor_metrics

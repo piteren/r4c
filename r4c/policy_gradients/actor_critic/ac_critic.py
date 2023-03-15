@@ -1,47 +1,60 @@
 import numpy as np
-from torchness.motorch import Module
+from torchness.motorch import Module, MOTorch
+from torchness.comoneural.zeroes_processor import ZeroesProcessor
 from typing import Optional, Dict, Any
 
-from r4c.policy_gradients.pg_actor import PGActor
 from r4c.policy_gradients.actor_critic.ac_critic_module import ACCriticModule
-from r4c.helpers import RLException
 
 
-class ACCritic(PGActor):
+
+class ACCritic:
 
     def __init__(
             self,
+            observation_width: int,
+            num_actions: int,
             name: str=                              'ACCritic',
             module_type: Optional[type(Module)]=    ACCriticModule,
+            tbwr: Optional=                         None,
             **kwargs):
-        PGActor.__init__(
-            self,
-            name=           name,
-            module_type=    module_type,
+
+        self.model = MOTorch(
+            module_type=        module_type,
+            name=               name,
+            observation_width=  observation_width,
+            num_actions=        num_actions,
             **kwargs)
 
-    # Critic does not have a policy
-    def get_policy_probs(self, observation:np.ndarray) -> np.ndarray:
-        raise RLException('not implemented since should not be called')
+        self._tbwr = tbwr
+        self._upd_step = 0
+
+        self.zepro = ZeroesProcessor(
+            intervals=  (10, 50, 100),
+            tag_pfx=    'critic_nane',
+            tbwr=       self._tbwr) if self._tbwr else None
 
 
     def get_qvs(self, observation:np.ndarray) -> np.ndarray:
         return self.model(observations=observation)['qvs'].detach().cpu().numpy()
 
 
-    def update_with_experience(
-            self,
-            batch: Dict[str,np.ndarray],
-            inspect: bool
-    ) -> Dict[str, Any]:
+    def update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
+        self._upd_step += 1
+        return self.model.backward(
+            observations=           training_data['observations'],
+            actions_taken=          training_data['actions'],
+            next_observations_qvs=  training_data['next_observations_qvs'],
+            next_actions_probs=     training_data['next_actions_probs'],
+            rewards=                training_data['rewards'])
 
-        out = self.model.backward(
-            observations=           batch['observations'],
-            actions_taken=          batch['actions'],
-            next_observations_qvs=  batch['next_observations_qvs'],
-            next_actions_probs=     batch['next_actions_probs'],
-            rewards=                batch['rewards'])
 
-        out.pop('qvs')
+    def publish(self, metrics: Dict[str,Any]):
 
-        return out
+        if self._tbwr:
+
+            zeroes = metrics.pop('critic_zeroes')
+            self.zepro.process(zs=zeroes, step=self._upd_step)
+
+            metrics.pop('critic_qvs')
+            for k, v in metrics.items():
+                self._tbwr.add(value=v, tag=f'critic/{k[7:]}', step=self._upd_step)

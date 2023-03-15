@@ -1,6 +1,7 @@
 from abc import ABC
 import numpy as np
 from torchness.motorch import MOTorch, Module
+from torchness.comoneural.zeroes_processor import ZeroesProcessor
 from typing import Optional, Dict, Any
 
 from r4c.helpers import RLException
@@ -15,73 +16,59 @@ class DQNActor(QLearningActor, ABC):
             self,
             name: str=                              'DQNActor',
             module_type: Optional[type(Module)]=    DQNModel,
-            seed: int=                              123,
             **kwargs):
 
         QLearningActor.__init__(
             self,
             name=   name,
-            seed=   seed,
             **kwargs)
 
         # some overrides and updates
-        kwargs['num_actions'] = self._envy.num_actions()
-        kwargs['observation_width'] = self.observation_vector(self._envy.get_observation()).shape[-1]
+        kwargs['num_actions'] = self.envy.num_actions()
+        kwargs['observation_width'] = self.observation_vector(self.envy.get_observation()).shape[-1]
 
         self.model = MOTorch(
             module_type=    module_type,
             name=           self.name,
-            seed=           seed,
             **kwargs)
 
-        self._rlog.info(f'*** DQNActor : {self.name} *** initialized')
+        self._zepro = ZeroesProcessor(
+            intervals=  (10, 50, 100),
+            tbwr=       self._tbwr) if self._tbwr else None
 
-    # returns QVs for a single observation (it is equal to batch call..)
+        self._rlog.info(f'*** DQNActor *** initialized')
+
+    # returns QVs for a single observation
     def _get_QVs(self, observation:np.ndarray) -> np.ndarray:
-        return self.model(observations=observation)['logits'].detach().cpu().numpy()
+        return self.model(observations=observation)['qvs'].detach().cpu().numpy()
 
     # single call with a batch of observations
     def get_QVs_batch(self, observations:np.ndarray) -> np.ndarray:
-        return self.model(observations=observations)['logits'].detach().cpu().numpy()
+        return self._get_QVs(observation=observations)
 
-
+    # not used by DQNActor
     def _upd_QV(
             self,
             observation: np.ndarray,
             action: int,
             new_qv: float) -> float:
-        raise RLException('not implemented, should not be used since DQN_Actor only updates with a batch')
+        raise RLException('not implemented, should not be used since DQNActor only updates with a batch')
 
-    # optimized with single call to session with a batch of data
-    def update_with_experience(
+    # updates NN
+    def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
+        return self.model.backward(**training_data)
+
+    # publishes
+    def _publish(
             self,
             batch: Dict[str,np.ndarray],
-            inspect: bool,
-    ) -> Dict[str, Any]:
-
-        full_qvs = np.zeros_like(batch['observations'])
-        mask = np.zeros_like(batch['observations'])
-        for v,pos in zip(batch['new_qvs'], enumerate(batch['actions'])):
-            full_qvs[pos] = v
-            mask[pos] = 1
-        batch['full_qvs'] = full_qvs
-        batch['mask'] = mask
-
-        for k in ['observations', 'actions', 'new_qvs', 'full_qvs', 'mask']:
-            self._rlog.log(5, f'>> {k}, shape: {batch[k].shape}\n{batch[k]}')
-
-        out = self.model.backward(
-            observations=   batch['observations'],
-            labels=         batch['full_qvs'],
-            mask=           batch['mask'])
-
-        out.pop('logits')
-
-        return out
-
-
-    def _get_save_topdir(self) -> str:
-        return self.model['save_topdir']
+            training_data: Dict[str,np.ndarray],
+            metrics: Dict[str,Any],
+    ) -> None:
+        if self._tbwr:
+            for k,v in metrics.items():
+                if k != 'qvs':
+                    self._tbwr.add(value=v, tag=f'actor/{k}', step=self._upd_step)
 
 
     def save(self):

@@ -3,6 +3,7 @@ import numpy as np
 from pypaq.lipytools.softmax import softmax
 from typing import Dict, Any
 
+from r4c.helpers import NUM, update_terminal_QVs
 from r4c.actor import TrainableActor
 from r4c.envy import FiniteActionsRLEnvy
 
@@ -13,17 +14,14 @@ class QLearningActor(TrainableActor, ABC):
     def __init__(
             self,
             envy: FiniteActionsRLEnvy,
-            seed: int,
+            gamma: float,               # QLearning gamma (discount factor)
             **kwargs):
-
         TrainableActor.__init__(self, envy=envy, **kwargs)
-        self._envy = envy  # to update type (for pycharm only)
-
-        np.random.seed(seed)
-
+        self.envy = envy  # to update type (for pycharm only)
+        self.gamma = gamma
         self._rlog.info('*** QLearningActor *** initialized')
-        self._rlog.info(f'> num_actions: {self._envy.num_actions()}')
-        self._rlog.info(f'> seed:        {seed}')
+        self._rlog.info(f'> num_actions: {self.envy.num_actions()}')
+        self._rlog.info(f'> gamma:       {self.gamma}')
 
     # returns QVs (QV for all actions) for given observation
     @abstractmethod
@@ -34,21 +32,25 @@ class QLearningActor(TrainableActor, ABC):
         return np.asarray([self._get_QVs(o) for o in observations])
 
     # returns action based on QVs
-    def get_policy_action(
+    def get_action(
             self,
             observation: np.ndarray,
-            sampled=    False,  # (experimental) whether to sample action with softmax on QVs
-    ) -> int:
+            explore: bool=  False,
+            sample: bool=   False,  # (experimental) whether to sample action with softmax on QVs
+    ) -> NUM:
+
+        if explore:
+            return int(np.random.choice(self.envy.num_actions()))
 
         qvs = self._get_QVs(observation)
 
-        if sampled:
+        if sample:
             obs_probs = softmax(qvs)
             return np.random.choice(len(qvs), p=obs_probs)
 
-        return int(np.argmax(qvs))
+        return np.argmax(qvs)
 
-    # updates QV for given observation and action, returns loss
+    # updates QV for given observation and action, returns loss (TD Error - Temporal Difference Error?)
     @abstractmethod
     def _upd_QV(
             self,
@@ -56,16 +58,40 @@ class QLearningActor(TrainableActor, ABC):
             action: int,
             new_qv: float) -> float: pass
 
-    # updates QV, loss for QLearning may be TD Error (Temporal Difference Error)
-    def update_with_experience(
-            self,
-            batch: Dict[str,np.ndarray],
-            inspect: bool,
-    ) -> Dict[str, Any]:
+    # extracts from a batch + adds new QV from Bellman Equation
+    def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
+
+        next_observations_qvs = self.get_QVs_batch(batch['next_observations'])
+
+        update_terminal_QVs(
+            qvs=        next_observations_qvs,
+            terminals=  batch['terminals'])
+
+        new_qv = [
+            r + self.gamma * max(no_qvs)
+            for r, no_qvs in zip(batch['rewards'], next_observations_qvs)]
+
+        return {
+            'observations': batch['observations'],
+            'actions':      batch['actions'],
+            'new_qv':       np.asarray(new_qv)}
+
+    # updates QV
+    def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
         loss = 0.0
-        for obs, act, nqv in zip(batch['observations'], batch['actions'], batch['new_qvs']):
+        for obs, act, nqv in zip(training_data['observations'], training_data['actions'], training_data['new_qv']):
             loss += self._upd_QV(
                 observation=    obs,
                 action=         act,
                 new_qv=         nqv)
         return {'loss': loss}
+
+    # publishes loss
+    def _publish(
+            self,
+            batch: Dict[str,np.ndarray],
+            training_data: Dict[str,np.ndarray],
+            metrics: Dict[str,Any],
+    ) -> None:
+        if self._tbwr:
+            self._tbwr.add(value=metrics['loss'], tag=f'actor/loss', step=self._upd_step)

@@ -18,7 +18,7 @@ class DQNModel(Module):
             num_actions: int=   4,
             observation_width=  4,
             hidden_layers=      (12,),
-            use_huber: bool=    False,  # for True uses Huber loss
+            use_huber: bool=    True, # MSE / Huber loss
             seed=               121):
 
         torch.nn.Module.__init__(self)
@@ -50,23 +50,21 @@ class DQNModel(Module):
 
 
     def forward(self, observations:TNS) -> DTNS:
-        out = self.ln(observations.to(torch.float32)) # + safety convert dtype
+        out = self.ln(observations.to(torch.float32)) # + safety dtype convert
         for lin,ln in zip(self.linL,self.lnL):
             out = lin(out)
             out = ln(out)
-        return {'logits': self.logits(out)}
+        return {'qvs': self.logits(out)}
 
 
     def loss(
             self,
             observations: TNS,
-            labels: TNS,
-            mask: Optional[TNS]=    None
+            actions: TNS,
+            new_qv: TNS,
     ) -> DTNS:
         out = self(observations)
-        loss = self.loss_fn(out['logits'], labels.to(torch.float32)) # + safety convert dtype
-        if mask is not None:
-            loss *= mask                        # mask
-        loss = torch.sum(loss, dim=-1)          # reduce over samples
-        out['loss'] = torch.mean(loss)          # average
+        qv_pred = out['qvs'][range(len(actions)),actions]
+        loss = self.loss_fn(qv_pred, new_qv)
+        out['loss'] = torch.mean(loss)
         return out
