@@ -21,11 +21,10 @@ class Envy(ABC):
             seed: int,
             logger=     None,
             loglevel=   20):
-        self._log = logger or get_pylogger(level=loglevel)
+        self._rlog = logger or get_pylogger(level=loglevel)
         self.seed = seed
-        self._log.info(f'*** Envy *** initialized')
-        self._log.info(f'> seed:      {self.seed}')
-        self._log.info(f'> max steps: {self.get_max_steps()}')
+        self._rlog.info(f'*** {self.__class__.__name__} (Envy) *** initialized')
+        self._rlog.debug(self)
 
     # returns observation of current state
     @abstractmethod
@@ -55,6 +54,12 @@ class Envy(ABC):
     # returns max number of steps in one episode, None means infinite
     @abstractmethod
     def get_max_steps(self) -> Optional[int]: pass
+
+    # some info about Envy
+    def __str__(self):
+        nfo = f'{self.__class__.__name__} (Envy)\n'
+        nfo += f'> max steps: {self.get_max_steps()}'
+        return nfo
 
 
 # adds to Envy methods needed by base RL algorithms (used by Actor or Trainer)
@@ -90,8 +95,6 @@ class FiniteActionsRLEnvy(RLEnvy):
 
     def __init__(self, **kwargs):
         RLEnvy.__init__(self, **kwargs)
-        self._log.info(f'*** FiniteActionsRLEnvy *** initialized')
-        self._log.info(f'> num_actions: {self.num_actions()}')
 
     # returns list of valid actions
     @abstractmethod
@@ -100,3 +103,9 @@ class FiniteActionsRLEnvy(RLEnvy):
     # returns number of Envy actions
     def num_actions(self) -> int:
         return len(self.get_valid_actions())
+
+
+    def __str__(self):
+        nfo =  f'{super().__str__()}\n'
+        nfo += f'> num_actions: {self.num_actions()}'
+        return nfo

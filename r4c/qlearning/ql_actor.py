@@ -19,9 +19,6 @@ class QLearningActor(TrainableActor, ABC):
         TrainableActor.__init__(self, envy=envy, **kwargs)
         self.envy = envy  # to update type (for pycharm only)
         self.gamma = gamma
-        self._rlog.info('*** QLearningActor *** initialized')
-        self._rlog.info(f'> num_actions: {self.envy.num_actions()}')
-        self._rlog.info(f'> gamma:       {self.gamma}')
 
     # returns QVs (QV for all actions) for given observation
     @abstractmethod
@@ -95,3 +92,9 @@ class QLearningActor(TrainableActor, ABC):
     ) -> None:
         if self._tbwr:
             self._tbwr.add(value=metrics['loss'], tag=f'actor/loss', step=self._upd_step)
+
+
+    def __str__(self):
+        nfo = f'{super().__str__()}\n'
+        nfo += f'> gamma: {self.gamma}'
+        return nfo

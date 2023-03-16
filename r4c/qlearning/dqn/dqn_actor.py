@@ -1,5 +1,6 @@
 from abc import ABC
 import numpy as np
+from pypaq.pms.base import POINT
 from torchness.motorch import MOTorch, Module
 from torchness.comoneural.zeroes_processor import ZeroesProcessor
 from typing import Optional, Dict, Any
@@ -14,29 +15,26 @@ class DQNActor(QLearningActor, ABC):
 
     def __init__(
             self,
-            name: str=                              'DQNActor',
             module_type: Optional[type(Module)]=    DQNModel,
+            motorch_point: Optional[POINT]=         None,
             **kwargs):
 
-        QLearningActor.__init__(
-            self,
-            name=   name,
-            **kwargs)
+        QLearningActor.__init__(self, **kwargs)
 
-        # some overrides and updates
-        kwargs['num_actions'] = self.envy.num_actions()
-        kwargs['observation_width'] = self.observation_vector(self.envy.get_observation()).shape[-1]
+        motorch_point = motorch_point or {}
+        motorch_point['num_actions'] = self.envy.num_actions()
+        motorch_point['observation_width'] = self.observation_vector(self.envy.get_observation()).shape[-1]
 
         self.model = MOTorch(
             module_type=    module_type,
             name=           self.name,
-            **kwargs)
+            seed=           self.seed,
+            logger=         self._rlog,
+            **motorch_point)
 
         self._zepro = ZeroesProcessor(
             intervals=  (10, 50, 100),
             tbwr=       self._tbwr) if self._tbwr else None
-
-        self._rlog.info(f'*** DQNActor *** initialized')
 
     # returns QVs for a single observation
     def _get_QVs(self, observation:np.ndarray) -> np.ndarray:
@@ -80,4 +78,6 @@ class DQNActor(QLearningActor, ABC):
 
 
     def __str__(self) -> str:
-        return str(self.model)
+        nfo = f'{super().__str__()}\n'
+        nfo += str(self.model)
+        return nfo

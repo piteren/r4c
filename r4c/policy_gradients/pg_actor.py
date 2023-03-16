@@ -1,5 +1,6 @@
 from abc import ABC
 import numpy as np
+from pypaq.pms.base import POINT
 from pypaq.lipytools.plots import two_dim_multi
 from torchness.motorch import MOTorch, Module
 from torchness.comoneural.zeroes_processor import ZeroesProcessor
@@ -19,42 +20,36 @@ class PGActor(TrainableActor, ABC):
     def __init__(
             self,
             envy: FiniteActionsRLEnvy,
-            name: str=                              'PGActor',
             module_type: Optional[type(Module)]=    PGActorModule,
             discount: float=                        0.95,   # discount factor for discounted returns
             use_mavg: bool=                         True,   # use MovAvg (moving average, reversed) to calculate discounted returns
             mavg_factor: float=                     0.3,    # MovAvg factor
             do_zscore: bool=                        True,   # apply zscore norm to discounted returns
+            motorch_point: Optional[POINT]=         None,
             **kwargs):
 
-        TrainableActor.__init__(
-            self,
-            envy=   envy,
-            name=   name,
-            **kwargs)
+        TrainableActor.__init__(self, envy=envy, **kwargs)
         self.envy = envy  # to update type (for pycharm only)
-
-        # some overrides and updates
-        kwargs['num_actions'] = self.envy.num_actions()
-        kwargs['observation_width'] = self.observation_vector(self.envy.get_observation()).shape[-1]
-
-        self.model = MOTorch(
-            module_type=    module_type,
-            name=           self.name,
-            **kwargs)
 
         self.discount = discount
         self.use_mavg = use_mavg
         self.movavg_factor = mavg_factor
         self.do_zscore = do_zscore
 
+        motorch_point = motorch_point or {}
+        motorch_point['num_actions'] = self.envy.num_actions()
+        motorch_point['observation_width'] = self.observation_vector(self.envy.get_observation()).shape[-1]
+
+        self.model = MOTorch(
+            module_type=    module_type,
+            name=           self.name,
+            seed=           self.seed,
+            logger=         self._rlog,
+            **motorch_point)
+
         self._zepro = ZeroesProcessor(
             intervals=  (10, 50, 100),
             tbwr=       self._tbwr) if self._tbwr else None
-
-        self._rlog.info(f'*** PGActor *** (NN based) initialized')
-        self._rlog.info(f'> discount: {self.discount}')
-        # TODO: add logs
 
     # prepares policy probs
     def get_policy_probs(self, observation:np.ndarray) -> np.ndarray:
@@ -176,5 +171,11 @@ class PGActor(TrainableActor, ABC):
         self.model.load()
 
 
-    def __str__(self):
-        return self.model.__str__()
+    def __str__(self) -> str:
+        nfo =  f'{super().__str__()}\n'
+        nfo += f'> discount: {self.discount}\n'
+        nfo += f'> use_mavg: {self.use_mavg}\n'
+        nfo += f'> movavg_factor: {self.movavg_factor}\n'
+        nfo += f'> do_zscore: {self.do_zscore}\n'
+        nfo += str(self.model)
+        return nfo

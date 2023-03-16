@@ -84,10 +84,9 @@ class RLRunner:
             loglevel=                   20):
 
         self._rlog = logger or get_pylogger(level=loglevel)
-        self._rlog.info(f'*** RLTrainer *** initializes..')
-        self._rlog.info(f'> Envy:            {envy.__class__.__name__}')
-        self._rlog.info(f'> Actor:           {actor.__class__.__name__}, name: {actor.name}')
-        self._rlog.info(f'> seed:            {seed}')
+        self._rlog.info(f'*** RLRunner *** initializes..')
+        self._rlog.info(f'> Envy: {envy.__class__.__name__}')
+        self._rlog.info(f'> Actor: {actor.name} ({actor.__class__.__name__})')
 
         self.envy = envy
         self.actor = actor

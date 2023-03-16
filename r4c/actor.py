@@ -27,41 +27,43 @@ class TrainableActor(Actor, ABC):
     def __init__(
             self,
             envy: RLEnvy,
-            name: str=              'TrainableActor',
-            name_timestamp: bool=   True,
+            name: Optional[str]=    None,
+            add_stamp: bool=        True,
             save_topdir: str=       '_models',
             logger: Optional=       None,
             loglevel: int=          20,
             publish_TB: bool=       True,
             research_mode: bool=    False,
             hpmser_mode: bool=      False,
-            seed: int=              123,
-            **kwargs):
+            seed: int=              123):
 
-        if name_timestamp: name += f'_{stamp()}'
-        self.name = name
         self.envy = envy
+
+        if name is None:
+            name = f'TrainableActor_{self.envy.__class__.__name__}'
+        if add_stamp: name += f'_{stamp()}'
+        self.name = name
+
         self.save_topdir = save_topdir
+
+        self._rlog = logger or get_pylogger(
+            folder= self.get_save_dir(),
+            level=  loglevel)
+
+        # early override
+        if hpmser_mode:
+            publish_TB = False
+            research_mode = False
+        self.research_mode = research_mode
 
         self.seed = seed
         np.random.seed(self.seed)
 
-        # early override
-        if hpmser_mode:
-            research_mode = False
-            publish_TB = False
-        self.research_mode = research_mode
-
         self._tbwr = TBwr(logdir=self.get_save_dir()) if publish_TB else None
         self._upd_step = 0  # global update step
 
-        self._rlog = logger or get_pylogger(level=loglevel)
-        self._rlog.info(f'*** TrainableActor *** initialized')
-        self._rlog.info(f'> name:              {self.name}')
-        self._rlog.info(f'> Envy:              {self.envy.__class__.__name__}')
-        self._rlog.info(f'> observation width: {self.observation_vector(self.envy.get_observation()).shape[-1]}')
-        self._rlog.info(f'> seed:              {seed}')
-        self._rlog.info(f'> not used kwargs:   {kwargs}')
+        self._rlog.info(f'*** {self.__class__.__name__} (TrainableActor) : {self.name} *** initialized')
+        self._rlog.debug(self)
 
     # prepares numpy vector from observation in type accepted by self, first tries to get from RLEnvy
     def observation_vector(self, observation:object) -> np.ndarray:
@@ -117,5 +119,7 @@ class TrainableActor(Actor, ABC):
     def load(self): pass
 
     # returns some info about Actor
-    @abstractmethod
-    def __str__(self) -> str: pass
+    def __str__(self):
+        nfo =  f'{self.__class__.__name__} (TrainableActor) : {self.name}\n'
+        nfo += f'> observation width: {self.observation_vector(self.envy.get_observation()).shape[-1]}'
+        return nfo

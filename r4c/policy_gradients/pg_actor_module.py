@@ -10,11 +10,11 @@ class PGActorModule(Module):
 
     def __init__(
             self,
-            observation_width=  4,
-            num_actions: int=   2,
+            observation_width: int,
+            num_actions: int,
             hidden_layers=      (20,),
             lay_norm=           False,
-            use_scaled_ce=      True,  # experimental Scaled Cross Entropy loss
+            use_scaled_ce=      False, # experimental Scaled Cross Entropy loss
             seed=               121):
 
         torch.nn.Module.__init__(self)
@@ -27,15 +27,15 @@ class PGActorModule(Module):
 
         self.lay_norm = lay_norm
 
-        self.ln = torch.nn.LayerNorm(observation_width) # input layer norm
+        self.ln = torch.nn.LayerNorm(observation_width) if self.lay_norm else None # input layer norm
 
         self.linL = [LayDense(*shape) for shape in lay_shapeL]
-        self.lnL = [torch.nn.LayerNorm(shape[-1]) for shape in lay_shapeL]
+        self.lnL = [torch.nn.LayerNorm(shape[-1]) if self.lay_norm else None for shape in lay_shapeL]
 
         lix = 0
         for lin,ln in zip(self.linL, self.lnL):
             self.add_module(f'lay_lin{lix}', lin)
-            self.add_module(f'lay_ln{lix}', ln)
+            if ln: self.add_module(f'lay_ln{lix}', ln)
             lix += 1
 
         self.logits = LayDense(
@@ -48,7 +48,9 @@ class PGActorModule(Module):
 
     def forward(self, observations:TNS) -> DTNS:
 
-        out = self.ln(observations) if self.lay_norm else observations
+        out = observations
+        if self.lay_norm:
+            out = self.ln(observations)
 
         zsL = []
         for lin,ln in zip(self.linL,self.lnL):
