@@ -89,6 +89,7 @@ class QLearningActor(TrainableActor, ABC):
             batch: Dict[str,np.ndarray],
             training_data: Dict[str,np.ndarray],
             metrics: Dict[str,Any],
+            inspect: bool,
     ) -> None:
         if self._tbwr:
             self._tbwr.add(value=metrics['loss'], tag=f'actor/loss', step=self._upd_step)

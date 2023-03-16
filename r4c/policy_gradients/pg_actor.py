@@ -1,13 +1,12 @@
 from abc import ABC
 import numpy as np
 from pypaq.pms.base import POINT
-from pypaq.lipytools.plots import two_dim_multi
 from torchness.motorch import MOTorch, Module
 from torchness.comoneural.zeroes_processor import ZeroesProcessor
 from torchness.comoneural.avg_probs import avg_mm_probs
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 
-from r4c.helpers import NUM, zscore_norm, discounted_return, movavg_return
+from r4c.helpers import NUM, zscore_norm, discounted_return, movavg_return, split_rewards, plot_obs_act, plot_rewards
 from r4c.actor import TrainableActor
 from r4c.envy import FiniteActionsRLEnvy
 from r4c.policy_gradients.pg_actor_module import PGActorModule
@@ -70,23 +69,10 @@ class PGActor(TrainableActor, ABC):
         if sample: return np.random.choice(self.envy.num_actions(), p=probs)
         else:      return np.argmax(probs)
 
-    # splits rewards into episode rewards
-    @staticmethod
-    def _split_rewards(rewards, terminals) -> List[List[float]]:
-        episode_rewards = []
-        cep = []
-        for r, t in zip(rewards, terminals):
-            cep.append(r)
-            if t:
-                episode_rewards.append(cep)
-                cep = []
-        if cep: episode_rewards.append(cep)
-        return episode_rewards
-
     # extracts from a batch + prepares dreturns
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
 
-        episode_rewards = PGActor._split_rewards(batch['rewards'], batch['terminals'])
+        episode_rewards = split_rewards(batch['rewards'], batch['terminals'])
 
         dreturns = []
         if self.use_mavg:
@@ -116,6 +102,7 @@ class PGActor(TrainableActor, ABC):
             batch: Dict[str,np.ndarray],
             training_data: Dict[str,np.ndarray],
             metrics: Dict[str,Any],
+            inspect: bool,
     ) -> None:
 
         if self._tbwr:
@@ -132,35 +119,13 @@ class PGActor(TrainableActor, ABC):
             for k,v in metrics.items():
                 self._tbwr.add(value=v, tag=f'actor/{k}', step=self._upd_step)
 
-        if self.research_mode:
-            # inspect each axis of observations
-            oL = np.split(batch['observations'], batch['observations'].shape[-1], axis=-1)
-            two_dim_multi(
-                ys=     oL,
-                names=  [f'obs_{ix}' for ix in range(len(oL))])
-
-            # inspect rewards and all 4 types of dreturns
-            dret_mavg = []
-            dret_disc = []
-            for rs in PGActor._split_rewards(batch['rewards'], batch['terminals']):
-                dret_mavg += movavg_return(rewards=rs, factor=self.movavg_factor)
-                dret_disc += discounted_return(rewards=rs, discount=self.discount)
-            dret_mavg_norm = zscore_norm(dret_mavg)
-            dret_disc_norm = zscore_norm(dret_disc)
-            two_dim_multi(
-                ys=     [
-                    batch['rewards'],
-                    dret_mavg,
-                    dret_disc,
-                    dret_mavg_norm,
-                    dret_disc_norm],
-                names=  [
-                    'rewards',
-                    'dret_mavg',
-                    'dret_disc',
-                    'dret_mavg_norm',
-                    'dret_disc_norm'],
-                legend_loc= 'lower left')
+        if inspect:
+            plot_obs_act(observations=batch['observations'], actions=batch['actions'])
+            plot_rewards(
+                rewards=        batch['rewards'],
+                terminals=      batch['terminals'],
+                discount=       self.discount,
+                movavg_factor=  self.movavg_factor)
 
 
     def save(self):

@@ -6,7 +6,7 @@ from torchness.tbwr import TBwr
 from typing import Optional, Dict, Any
 
 from r4c.envy import RLEnvy
-from r4c.helpers import RLException, NUM
+from r4c.helpers import RLException, NUM, plot_obs_act, plot_rewards
 
 
 # just abstract Actor
@@ -33,7 +33,6 @@ class TrainableActor(Actor, ABC):
             logger: Optional=       None,
             loglevel: int=          20,
             publish_TB: bool=       True,
-            research_mode: bool=    False,
             hpmser_mode: bool=      False,
             seed: int=              123):
 
@@ -53,8 +52,6 @@ class TrainableActor(Actor, ABC):
         # early override
         if hpmser_mode:
             publish_TB = False
-            research_mode = False
-        self.research_mode = research_mode
 
         self.seed = seed
         np.random.seed(self.seed)
@@ -85,7 +82,7 @@ class TrainableActor(Actor, ABC):
     def update_with_experience(self, batch:Dict[str,np.ndarray], inspect:bool) -> float:
         training_data = self._build_training_data(batch=batch)
         metrics = self._update(training_data=training_data)
-        self._publish(batch=batch, training_data=training_data, metrics=metrics)
+        self._publish(batch=batch, training_data=training_data, metrics=metrics, inspect=inspect)
         self._upd_step += 1
         return metrics['loss']
 
@@ -97,14 +94,21 @@ class TrainableActor(Actor, ABC):
     @abstractmethod
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]: pass
 
-    # publishes to TB / inspects data in research mode
-    @abstractmethod
+    # publishes to TB / inspects data in research mode, here baseline mode
     def _publish(
             self,
             batch: Dict[str,np.ndarray],
             training_data: Dict[str,np.ndarray],
             metrics: Dict[str,Any],
-    ) -> None: pass
+            inspect: bool,
+    ) -> None:
+
+        if self._tbwr:
+            self._tbwr.add(value=metrics['loss'], tag=f'actor/loss', step=self._upd_step)
+
+        if inspect:
+            plot_obs_act(observations=batch['observations'], actions=batch['actions'])
+            plot_rewards(rewards=batch['rewards'])
 
     # returns Actor save directory
     def get_save_dir(self) -> str:

@@ -6,7 +6,7 @@ from typing import List, Tuple, Optional, Dict, Union
 
 from r4c.envy import RLEnvy
 from r4c.actor import TrainableActor
-from r4c.helpers import RLException, NUM
+from r4c.helpers import RLException, NUM, plot_obs_act, plot_rewards
 
 
 # Runner Experience Memory
@@ -102,7 +102,7 @@ class RLRunner:
             break_terminal: bool,   # for True breaks play at terminal state
             exploration: float,
             sampled: float,
-            render: bool,
+            inspect: bool,
     ) -> Tuple[
         List[np.ndarray],   # observations
         List[NUM],          # actions
@@ -133,10 +133,21 @@ class RLRunner:
             terminals.append(self.envy.is_terminal())
             wons.append(self.envy.won())
 
-            if render: self.envy.render()
+            if inspect: self.envy.render()
 
             if terminals[-1] and break_terminal:
                 break
+
+        if inspect:
+            plot_obs_act(observations=observations, actions=actions)
+            kw = {'rewards': rewards}
+            if 'discount' in self.actor.__dict__:
+                kw.update({
+                    'terminals':        terminals,
+                    'discount':         self.actor.__dict__['discount'],
+                    'movavg_factor':    self.actor.__dict__['movavg_factor'],
+                })
+            plot_rewards(**kw)
 
         self._rlog.log(5,f'played {len(actions)} steps (break_terminal is {break_terminal})')
         return observations, actions, rewards, terminals, wons
@@ -192,7 +203,7 @@ class RLRunner:
             break_terminal= True,
             exploration=    exploration,
             sampled=        sampled,
-            render=         inspect)
+            inspect=        inspect)
 
         return observations, actions, rewards, wons[-1]
 
@@ -256,7 +267,7 @@ class RLRunner:
                     break_terminal= True,
                     exploration=    exploration,
                     sampled=        sampled_TR,
-                    render=         False)
+                    inspect=        False)
 
                 na = len(actions)
                 n_batch_actions += na
