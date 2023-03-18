@@ -14,8 +14,8 @@ class A2CModule(Module):
             observation_width: int=             4,
             num_actions: int=                   2,
             two_towers: bool=                   False,  # builds separate towers for Actor & Critic
-            num_layers: int=                    1,
-            layer_width: int=                   50,
+            n_hidden: int=                      1,
+            hidden_width: int=                  50,
             lay_norm: bool=                     False,
             clamp_advantage: Optional[float]=   0.5,    # limits advantage abs value
             use_scaled_ce: bool=                True,   # experimental Scaled Cross Entropy loss
@@ -29,8 +29,7 @@ class A2CModule(Module):
 
         torch.nn.Module.__init__(self)
 
-        hidden_layers = tuple([layer_width] * num_layers)
-
+        hidden_layers = [hidden_width] * n_hidden
         lay_shapeL = []
         next_in = observation_width
         for hl in hidden_layers:
@@ -39,14 +38,14 @@ class A2CModule(Module):
 
         self.lay_norm = lay_norm
 
-        self.ln = torch.nn.LayerNorm(observation_width) # input layer norm
+        self.ln = torch.nn.LayerNorm(observation_width) if self.lay_norm else None # input layer norm
 
         self.linL = [LayDense(*shape) for shape in lay_shapeL]
-        self.lnL = [torch.nn.LayerNorm(shape[-1]) for shape in lay_shapeL]
+        self.lnL = [torch.nn.LayerNorm(shape[-1]) if self.lay_norm else None for shape in lay_shapeL]
         lix = 0
         for lin,ln in zip(self.linL, self.lnL):
             self.add_module(f'lay_lin{lix}', lin)
-            self.add_module(f'lay_ln{lix}', ln)
+            if ln: self.add_module(f'lay_ln{lix}', ln)
             lix += 1
 
         self.linL_tower = [LayDense(*shape) for shape in lay_shapeL] if two_towers else []
@@ -74,7 +73,9 @@ class A2CModule(Module):
 
     def forward(self, observations:TNS) -> DTNS:
 
-        inp = self.ln(observations) if self.lay_norm else observations
+        inp = observations
+        if self.lay_norm:
+            inp = self.ln(observations)
 
         zsL = []
         out = inp

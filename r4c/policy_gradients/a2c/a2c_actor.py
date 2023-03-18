@@ -27,14 +27,15 @@ class A2CActor(PGActor):
             batch: Dict[str,np.ndarray],
             training_data: Dict[str,np.ndarray],
             metrics: Dict[str,Any],
+            inspect: bool,
     ) -> None:
 
         value = metrics.pop('value')
         advantage = metrics.pop('advantage')
 
-        super()._publish(batch, training_data, metrics)
+        super()._publish(batch, training_data, metrics, inspect)
 
-        if self.research_mode:
+        if inspect:
             ins_vals = {
                 'dreturns':     batch['dreturns'],
                 'value':        value.detach().cpu().numpy(),
