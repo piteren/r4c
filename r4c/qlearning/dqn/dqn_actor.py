@@ -30,6 +30,7 @@ class DQNActor(QLearningActor, ABC):
             name=           self.name,
             seed=           self.seed,
             logger=         self._rlog,
+            hpmser_mode=    self.hpmser_mode,
             **motorch_point)
 
         self._zepro = ZeroesProcessor(
@@ -62,6 +63,7 @@ class DQNActor(QLearningActor, ABC):
             batch: Dict[str,np.ndarray],
             training_data: Dict[str,np.ndarray],
             metrics: Dict[str,Any],
+            inspect: bool,
     ) -> None:
         if self._tbwr:
             for k,v in metrics.items():

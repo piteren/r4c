@@ -49,8 +49,9 @@ class TrainableActor(Actor, ABC):
             folder= self.get_save_dir(),
             level=  loglevel)
 
+        self.hpmser_mode = hpmser_mode
         # early override
-        if hpmser_mode:
+        if self.hpmser_mode:
             publish_TB = False
 
         self.seed = seed

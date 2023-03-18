@@ -12,13 +12,15 @@ class PGActorModule(Module):
             self,
             observation_width: int,
             num_actions: int,
-            hidden_layers=      (20,),
+            n_hidden: int=      2,
+            hidden_width: int=  12,
             lay_norm=           False,
             use_scaled_ce=      False, # experimental Scaled Cross Entropy loss
             seed=               121):
 
         torch.nn.Module.__init__(self)
 
+        hidden_layers = [hidden_width] * n_hidden
         lay_shapeL = []
         next_in = observation_width
         for hl in hidden_layers:
@@ -71,20 +73,25 @@ class PGActorModule(Module):
             self,
             observations: TNS,
             actions_taken: TNS,
-            dreturns: TNS) -> DTNS:
+            dreturns: TNS,
+    ) -> DTNS:
 
         out = self(observations)
         logits = out['logits']
 
         if self.use_scaled_ce:
-            actor_ce_scaled = scaled_cross_entropy(
+            ceo = scaled_cross_entropy(
                 labels= actions_taken,
                 scale=  dreturns,
                 probs=  out['probs'])
+            actor_ce = ceo['cross_entropy']
+            actor_ce_scaled = ceo['scaled_cross_entropy']
         else:
-            actor_ce = torch.nn.functional.cross_entropy(logits, actions_taken, reduction='none')
+            actor_ce = torch.nn.functional.cross_entropy(input=logits, target=actions_taken, reduction='none')
             actor_ce_scaled = actor_ce * dreturns
 
-        out.update({'loss': torch.mean(actor_ce_scaled)})
+        out.update({
+            'cross_entropy':    torch.mean(actor_ce),
+            'loss':             torch.mean(actor_ce_scaled)})
 
         return out

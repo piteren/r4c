@@ -44,6 +44,7 @@ class PGActor(TrainableActor, ABC):
             name=           self.name,
             seed=           self.seed,
             logger=         self._rlog,
+            hpmser_mode=    self.hpmser_mode,
             **motorch_point)
 
         self._zepro = ZeroesProcessor(

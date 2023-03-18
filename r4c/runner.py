@@ -300,20 +300,6 @@ class RLRunner:
                 inspect=    inspect and upd_ix % test_freq == 0)
             lossL.append(loss_mavg.upd(loss))
 
-            """
-            # process / monitor policy probs
-            if self._tbwr and 'probs' in upd_metrics:
-                for k,v in avg_mm_probs(upd_metrics.pop('probs')).items():
-                    self._tbwr.add(value=v, tag=f'actor_upd/{k}', step=self._upd_step)
-
-            if self._zepro and 'zeroes' in upd_metrics:
-                self._zepro.process(zs=upd_metrics.pop('zeroes'))
-
-            if self._tbwr:
-                for k,v in upd_metrics.items():
-                    self._tbwr.add(value=v, tag=f'actor_upd/{k}', step=self._upd_step)
-            """
-
             ### 3. test an Actor
 
             if upd_ix % test_freq == 0:

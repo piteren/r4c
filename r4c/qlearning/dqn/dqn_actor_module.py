@@ -2,7 +2,6 @@ import torch
 from torchness.types import TNS, DTNS
 from torchness.motorch import Module
 from torchness.layers import LayDense
-from typing import Optional
 
 
 # Deep QNetwork Model
@@ -17,12 +16,14 @@ class DQNModel(Module):
             self,
             num_actions: int=   4,
             observation_width=  4,
-            hidden_layers=      (12,),
+            n_hidden: int=      2,
+            hidden_width: int=  12,
             use_huber: bool=    True, # MSE / Huber loss
             seed=               121):
 
         torch.nn.Module.__init__(self)
 
+        hidden_layers = [hidden_width] * n_hidden
         lay_shapeL = []
         next_in = observation_width
         for hl in hidden_layers:
