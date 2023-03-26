@@ -253,7 +253,8 @@ class RLRunner:
         succeeded_row_max = 0       # max number of succeeded tests in a row
 
         stime = time.time()
-        for upd_ix in range(num_updates):
+        upd_ix = 0
+        while upd_ix < num_updates:
 
             ### 1. get a batch of data (play)
 
@@ -325,6 +326,8 @@ class RLRunner:
                     if succeeded_row_curr > succeeded_row_max: succeeded_row_max = succeeded_row_curr
                 else: succeeded_row_curr = 0
 
+            upd_ix += 1
+
             if break_ntests is not None and succeeded_row_curr==break_ntests: break
 
         self._rlog.info(f'### Training finished, time taken: {time.time()-stime:.2f}sec')
@@ -334,6 +337,7 @@ class RLRunner:
             'lossL':                lossL,
             'n_terminals':          n_terminals,
             'n_won':                n_won,
+            'n_updates_done':       upd_ix,
             'succeeded_row_max':    succeeded_row_max}
 
     # plays n episodes, returns (won_factor, avg/reward)
