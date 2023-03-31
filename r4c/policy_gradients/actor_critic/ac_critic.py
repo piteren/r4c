@@ -33,10 +33,8 @@ class ACCritic:
             tag_pfx=    'critic_nane',
             tbwr=       self._tbwr) if self._tbwr else None
 
-
     def get_qvs(self, observation:np.ndarray) -> np.ndarray:
         return self.model(observations=observation)['qvs'].detach().cpu().numpy()
-
 
     def update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
         self._upd_step += 1
@@ -46,7 +44,6 @@ class ACCritic:
             next_observations_qvs=  training_data['next_observations_qvs'],
             next_actions_probs=     training_data['next_actions_probs'],
             rewards=                training_data['rewards'])
-
 
     def publish(self, metrics: Dict[str,Any]):
 

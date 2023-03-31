@@ -24,10 +24,8 @@ class QTable:
     def __hash(observation:np.ndarray) -> str:
         return str(observation)
 
-
     def __init_hash(self, ha:str):
         self.__table[ha] = np.zeros(self.__width, dtype=float)
-
 
     def get_QVs(self, observation:np.ndarray) -> np.ndarray:
         ha = QTable.__hash(observation)
@@ -35,7 +33,6 @@ class QTable:
             self.__init_hash(ha)
             self.__keys.append(observation)
         return self.__table[ha]
-
 
     def put_QV(self,
             observation: np.ndarray,
@@ -46,7 +43,6 @@ class QTable:
             self.__init_hash(ha)
             self.__keys.append(observation)
         self.__table[ha][action] = new_qv
-
 
     def __str__(self):
         s = f'length: {len(self.__table) if self.__table else "<empty>"}\n'
@@ -90,7 +86,6 @@ class QTableActor(QLearningActor):
 
         return abs(diff)
 
-
     def save(self):
         save_data = {
             'update_rate': self.update_rate,
@@ -99,12 +94,10 @@ class QTableActor(QLearningActor):
         prep_folder(folder)
         w_pickle(save_data, f'{folder}/qt.data')
 
-
     def load(self):
         saved_data = r_pickle(f'{self.get_save_dir()}/qt.data')
         self.update_rate = saved_data['update_rate']
         self.__qtable = saved_data['qtable']
-
 
     def __str__(self):
         return f'QTableActor, QTable:\n{self.__qtable.__str__()}'

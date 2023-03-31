@@ -44,7 +44,6 @@ class ACCriticModule(Module):
             out_features=   num_actions,
             activation=     None)
 
-
     def forward(self, observations:TNS) -> DTNS:
 
         out = self.ln(observations) if self.lay_norm else observations
@@ -60,7 +59,6 @@ class ACCriticModule(Module):
         return {
             'qvs':      qvs,
             'zeroes':   zsL}
-
 
     def loss(
             self,

@@ -1,19 +1,18 @@
 from abc import abstractmethod, ABC
 import numpy as np
+from pypaq.pytypes import NUM
 from pypaq.lipytools.pylogger import get_pylogger
 from typing import List, Optional
 
-from r4c.helpers import RLException, NUM
+from r4c.helpers import RLException
 
 
 
 # base Environment interface
 class Envy(ABC):
     """
-    Such concept of Envy assumes that user (Trainer, Actor) is responsible for
+    Such concept of Envy assumes that user (Actor) is responsible for
     resetting the Envy after reaching terminal state (e.g. before calling run()).
-    Implementation of Envy that manages reset by itself probably will work fine,
-    but may differ e.g. when asked for observation after terminal state reached.
     """
 
     def __init__(
@@ -55,7 +54,6 @@ class Envy(ABC):
     @abstractmethod
     def get_max_steps(self) -> Optional[int]: pass
 
-    # some info about Envy
     def __str__(self):
         nfo = f'{self.__class__.__name__} (Envy)\n'
         nfo += f'> max steps: {self.get_max_steps()}'
@@ -69,8 +67,8 @@ class RLEnvy(Envy, ABC):
     def run(self, action:NUM) -> float:
         """
         RLEnvy returns reward after each step (run).
-        This value may (should?) be processed / overridden by Trainer.
-        Trainer is supposed to train Actor using information of reward
+        This value may (should?) be processed / overridden by Actor.
+        Actor is supposed to train itself using information of reward
         that he defines / corrects while observing an Envy,
         he may apply discount, factor, moving average etc. to reward returned by Envy.
         (Actor does not need a reward to act with policy.)
@@ -85,7 +83,7 @@ class RLEnvy(Envy, ABC):
         """
         It may be implemented by RLEnvy, but is not mandatory,
         otherwise Actor should implement on itself since it is in fact Actor duty.
-        Be careful of dtype and values, NN may not accept dtype==int.
+        Be careful about dtype and values, NN may not accept dtype==int.
         """
         raise RLException('RLEnvy not implemented observation_vector()')
 
@@ -103,7 +101,6 @@ class FiniteActionsRLEnvy(RLEnvy):
     # returns number of Envy actions
     def num_actions(self) -> int:
         return len(self.get_valid_actions())
-
 
     def __str__(self):
         nfo =  f'{super().__str__()}\n'

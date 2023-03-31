@@ -23,7 +23,7 @@ class DQNActor(QLearningActor, ABC):
 
         motorch_point = motorch_point or {}
         motorch_point['num_actions'] = self.envy.num_actions()
-        motorch_point['observation_width'] = self.observation_vector(self.envy.get_observation()).shape[-1]
+        motorch_point['observation_width'] = self._observation_vector(self.envy.get_observation()).shape[-1]
 
         self.model = MOTorch(
             module_type=    module_type,
@@ -70,14 +70,11 @@ class DQNActor(QLearningActor, ABC):
                 if k != 'qvs':
                     self._tbwr.add(value=v, tag=f'actor/{k}', step=self._upd_step)
 
-
     def save(self):
         self.model.save()
 
-
     def load(self):
         self.model.load()
-
 
     def __str__(self) -> str:
         nfo = f'{super().__str__()}\n'

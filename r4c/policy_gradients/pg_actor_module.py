@@ -47,7 +47,6 @@ class PGActorModule(Module):
 
         self.use_scaled_ce = use_scaled_ce
 
-
     def forward(self, observations:TNS) -> DTNS:
 
         out = observations
@@ -67,7 +66,6 @@ class PGActorModule(Module):
             'logits':       logits,
             'probs':        probs,
             'zeroes':       zsL}
-
 
     def loss(
             self,

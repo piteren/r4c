@@ -25,7 +25,7 @@ class ACActor(PGActor):
             **kwargs)
 
         self.critic = critic_class(
-            observation_width=  self.observation_vector(self.envy.get_observation()).shape[-1],
+            observation_width=  self._observation_vector(self.envy.get_observation()).shape[-1],
             num_actions=        self.envy.num_actions(),
             tbwr=               self._tbwr,
             seed=               kwargs['seed'],
@@ -52,7 +52,7 @@ class ACActor(PGActor):
             qvs=        next_observations_qvs,
             terminals=  batch['terminals'])
         training_data['next_observations_qvs'] = next_observations_qvs
-        training_data['next_actions_probs'] = self.get_policy_probs(batch['next_observations'])  # get next_observations actions_probs (with Actor policy)
+        training_data['next_actions_probs'] = self._get_policy_probs(batch['next_observations'])  # get next_observations actions_probs (with Actor policy)
 
         return training_data
 
@@ -71,20 +71,20 @@ class ACActor(PGActor):
 
         return actor_metrics
 
-
     def _publish(
             self,
             batch: Dict[str,np.ndarray],
             training_data: Dict[str,np.ndarray],
             metrics: Dict[str,Any],
+            inspect: bool,
     ) -> None:
 
         critic_metrics = {k: metrics[k] for k in metrics if k.startswith('critic')}
         for k in critic_metrics: metrics.pop(k)
-        super()._publish(batch=batch, training_data=training_data, metrics=metrics)
+        super()._publish(batch=batch, training_data=training_data, metrics=metrics, inspect=inspect)
         self.critic.publish(critic_metrics)
 
-        if self.research_mode:
+        if inspect:
             """
             print(f'\nBatch size: {len(batch)}')
             print(f'observations: {observations.shape}, {observations[0]}')

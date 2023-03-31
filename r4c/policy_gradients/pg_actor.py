@@ -1,12 +1,13 @@
 from abc import ABC
 import numpy as np
+from pypaq.pytypes import NUM
 from pypaq.pms.base import POINT
 from torchness.motorch import MOTorch, Module
 from torchness.comoneural.zeroes_processor import ZeroesProcessor
 from torchness.comoneural.avg_probs import avg_mm_probs
 from typing import Optional, Dict, Any
 
-from r4c.helpers import NUM, zscore_norm, discounted_return, movavg_return, split_rewards, plot_obs_act, plot_rewards
+from r4c.helpers import zscore_norm, discounted_return, movavg_return, split_rewards, plot_obs_act, plot_rewards
 from r4c.actor import TrainableActor
 from r4c.envy import FiniteActionsRLEnvy
 from r4c.policy_gradients.pg_actor_module import PGActorModule
@@ -37,7 +38,7 @@ class PGActor(TrainableActor, ABC):
 
         motorch_point = motorch_point or {}
         motorch_point['num_actions'] = self.envy.num_actions()
-        motorch_point['observation_width'] = self.observation_vector(self.envy.get_observation()).shape[-1]
+        motorch_point['observation_width'] = self._observation_vector(self.envy.get_observation()).shape[-1]
 
         self.model = MOTorch(
             module_type=    module_type,
@@ -52,11 +53,11 @@ class PGActor(TrainableActor, ABC):
             tbwr=       self._tbwr) if self._tbwr else None
 
     # prepares policy probs
-    def get_policy_probs(self, observation:np.ndarray) -> np.ndarray:
+    def _get_policy_probs(self, observation:np.ndarray) -> np.ndarray:
         return self.model(observations=observation)['probs'].detach().cpu().numpy()
 
     # returns policy action based on policy probs
-    def get_action(
+    def _get_action(
             self,
             observation: np.ndarray,
             explore: bool = False,
@@ -66,9 +67,9 @@ class PGActor(TrainableActor, ABC):
         if explore:
             return int(np.random.choice(self.envy.num_actions()))
 
-        probs = self.get_policy_probs(observation)
-        if sample: return np.random.choice(self.envy.num_actions(), p=probs)
-        else:      return np.argmax(probs)
+        probs = self._get_policy_probs(observation)
+        if sample: return int(np.random.choice(self.envy.num_actions(), p=probs))
+        else:      return int(np.argmax(probs))
 
     # extracts from a batch + prepares dreturns
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
@@ -96,7 +97,6 @@ class PGActor(TrainableActor, ABC):
             observations=   training_data['observations'],
             actions_taken=  training_data['actions'],
             dreturns=       training_data['dreturns'])
-
 
     def _publish(
             self,
@@ -128,14 +128,11 @@ class PGActor(TrainableActor, ABC):
                 discount=       self.discount,
                 movavg_factor=  self.movavg_factor)
 
-
     def save(self):
         self.model.save()
 
-
     def load(self):
         self.model.load()
-
 
     def __str__(self) -> str:
         nfo =  f'{super().__str__()}\n'

@@ -1,9 +1,10 @@
 from abc import abstractmethod, ABC
 import numpy as np
+from pypaq.pytypes import NUM
 from pypaq.lipytools.softmax import softmax
 from typing import Dict, Any
 
-from r4c.helpers import NUM, update_terminal_QVs
+from r4c.helpers import update_terminal_QVs
 from r4c.actor import TrainableActor
 from r4c.envy import FiniteActionsRLEnvy
 
@@ -29,7 +30,7 @@ class QLearningActor(TrainableActor, ABC):
         return np.asarray([self._get_QVs(o) for o in observations])
 
     # returns action based on QVs
-    def get_action(
+    def _get_action(
             self,
             observation: np.ndarray,
             explore: bool=  False,
@@ -45,7 +46,7 @@ class QLearningActor(TrainableActor, ABC):
             obs_probs = softmax(qvs)
             return np.random.choice(len(qvs), p=obs_probs)
 
-        return np.argmax(qvs)
+        return int(np.argmax(qvs))
 
     # updates QV for given observation and action, returns loss (TD Error - Temporal Difference Error?)
     @abstractmethod
@@ -93,7 +94,6 @@ class QLearningActor(TrainableActor, ABC):
     ) -> None:
         if self._tbwr:
             self._tbwr.add(value=metrics['loss'], tag=f'actor/loss', step=self._upd_step)
-
 
     def __str__(self):
         nfo = f'{super().__str__()}\n'

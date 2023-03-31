@@ -21,7 +21,6 @@ class A2CActor(PGActor):
             module_type=    module_type,
             **kwargs)
 
-
     def _publish(
             self,
             batch: Dict[str,np.ndarray],
@@ -33,7 +32,7 @@ class A2CActor(PGActor):
         value = metrics.pop('value')
         advantage = metrics.pop('advantage')
 
-        super()._publish(batch, training_data, metrics, inspect)
+        super()._publish(batch=batch, training_data=training_data, metrics=metrics, inspect=inspect)
 
         if inspect:
             ins_vals = {

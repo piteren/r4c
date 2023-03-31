@@ -70,7 +70,6 @@ class A2CModule(Module):
         self.use_scaled_ce = use_scaled_ce
         self.use_huber = use_huber
 
-
     def forward(self, observations:TNS) -> DTNS:
 
         inp = observations
@@ -102,7 +101,6 @@ class A2CModule(Module):
             'logits':   logits,
             'probs':    probs,
             'zeroes':   zsL}
-
 
     def loss(
             self,
