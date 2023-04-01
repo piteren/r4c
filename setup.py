@@ -9,7 +9,7 @@ def get_requirements():
 
 setup(
     name=               'r4c',
-    version=            'v0.1.0',
+    version=            'v0.2.0',
     url=                'https://github.com/piteren/hpmser.git',
     author=             'Piotr Niewinski',
     author_email=       'pioniewinski@gmail.com',
