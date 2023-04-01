@@ -19,8 +19,8 @@ class ExperienceMemory:
 
     def __init__(
             self,
-            max_size: Optional[int],
-            seed: int):
+            max_size: Optional[int]=    None,
+            seed: int=                  123):
         self._mem: Dict[str,np.ndarray] = {}
         self._init_mem()
         self.max_size = max_size
@@ -36,7 +36,7 @@ class ExperienceMemory:
             'wons':                 None} # np.ndarray of bool
 
     # adds given experience
-    def add(self, experience:Dict[str,Union[List,np.ndarray]]):
+    def add(self, experience:Dict[str, Union[NPL]]):
 
         # add or put
         for k in experience:
@@ -70,7 +70,7 @@ class ExperienceMemory:
 
 
 # normalizes x with zscore (0 mean 1 std), this is helpful for training, as rewards can vary considerably between episodes,
-def zscore_norm(x: NPL):
+def zscore_norm(x:NPL):
     if len(x) < 2: return x
     return (x - np.mean(x)) / (np.std(x) + 0.00000001)
 
@@ -79,7 +79,7 @@ def discounted_return(
         rewards: List[float],
         discount: float,
 ) -> List[float]:
-    dar = np.zeros_like(rewards)
+    dar = np.zeros_like(rewards, dtype=float)
     s = 0.0
     for i in reversed(range(len(rewards))):
         s = s * discount + rewards[i]
@@ -91,7 +91,7 @@ def movavg_return(
         rewards: List[float],
         factor: float,           # (0.0-0.1> factor of current reward taken for update
 ) -> List[float]:
-    mvr = np.zeros_like(rewards)
+    mvr = np.zeros_like(rewards, dtype=float)
     s = rewards[-1]
     mavg = MovAvg(factor=factor, first_avg=False)
     mvr[-1] = mavg.upd(s)
@@ -107,6 +107,10 @@ def update_terminal_QVs(qvs:np.ndarray, terminals:np.ndarray) -> None:
 
 # splits rewards into episode rewards
 def split_rewards(rewards, terminals) -> List[List[float]]:
+
+    if len(rewards) != len(terminals):
+        raise RLException('len(rewards) should be equal to len(terminals)')
+
     episode_rewards = []
     cep = []
     for r, t in zip(rewards, terminals):
