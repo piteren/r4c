@@ -81,7 +81,7 @@ class TrainableActor(Actor, ABC):
 
         self._rlog.debug(self)
 
-    # prepares numpy vector from observation in type accepted by self, first tries to get from RLEnvy
+    # prepares vector (np.ndarray) from observation, first tries to get from RLEnvy
     def _observation_vector(self, observation:object) -> np.ndarray:
         try:
             return self.envy.observation_vector(observation)
@@ -97,7 +97,7 @@ class TrainableActor(Actor, ABC):
             sample: bool=   False,      # samples action (from policy probability)
     ) -> NUM: pass
 
-    # moves single step (Actor on Envy)
+    # single  move of Actor on Envy (observation > action > reward)
     def _move(self, training:bool) -> Tuple[
         np.ndarray, # observation
         NUM,        # action
@@ -124,7 +124,7 @@ class TrainableActor(Actor, ABC):
 
         return observation_vector, action, reward, next_observation_vector
 
-    # plays on Envy
+    # plays some steps on Envy
     def run_play(
             self,
             steps: Optional[int]=   None,
@@ -295,7 +295,15 @@ class TrainableActor(Actor, ABC):
             'n_updates_done':       batch_ix-1,
             'succeeded_row_max':    succeeded_row_max}
 
-    # plays n episodes, returns (won_factor, avg_reward)
+    # extracts data from a batch + eventually adds new
+    @abstractmethod
+    def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]: pass
+
+    # updates policy or value function (Actor, Critic ar any other component), returns metrics with 'loss'
+    @abstractmethod
+    def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]: pass
+
+    # plays n episodes, returns tuple with won_factor & avg_reward
     def test_on_episodes(
             self,
             n_episodes: int=            10,
@@ -313,14 +321,6 @@ class TrainableActor(Actor, ABC):
             n_won += sum(wons)
             sum_rewards += sum(rewards)
         return n_won/n_episodes, sum_rewards/n_episodes
-
-    # extracts data from a batch + eventually adds new
-    @abstractmethod
-    def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]: pass
-
-    # updates policy or value function (Actor, Critic ar any other component), returns metrics with 'loss'
-    @abstractmethod
-    def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]: pass
 
     # publishes to TB / inspects data
     def _publish(
