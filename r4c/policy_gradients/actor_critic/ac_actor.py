@@ -28,6 +28,7 @@ class ACActor(PGActor):
             observation_width=  self._observation_vector(self.envy.get_observation()).shape[-1],
             num_actions=        self.envy.num_actions(),
             tbwr=               self._tbwr,
+            hpmser_mode=        self.hpmser_mode,
             seed=               kwargs['seed'],
             **c_kwargs)
 
