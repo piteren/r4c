@@ -40,6 +40,7 @@ class A2CModule(Module):
 
         self.ln = torch.nn.LayerNorm(observation_width) if self.lay_norm else None # input layer norm
 
+        # Actor (or Actor+Critic) tower layers
         self.linL = [LayDense(*shape) for shape in lay_shapeL]
         self.lnL = [torch.nn.LayerNorm(shape[-1]) if self.lay_norm else None for shape in lay_shapeL]
         lix = 0
@@ -48,19 +49,22 @@ class A2CModule(Module):
             if ln: self.add_module(f'lay_ln{lix}', ln)
             lix += 1
 
-        self.linL_tower = [LayDense(*shape) for shape in lay_shapeL] if two_towers else []
-        self.lnL_tower = [torch.nn.LayerNorm(shape[-1]) for shape in lay_shapeL] if two_towers else []
+        # Critic tower layers
+        self.linL_critic_tower = [LayDense(*shape) for shape in lay_shapeL] if two_towers else []
+        self.lnL_critic_tower = [torch.nn.LayerNorm(shape[-1]) for shape in lay_shapeL] if two_towers else []
         lix = 0
-        for lin,ln in zip(self.linL_tower, self.lnL_tower):
+        for lin,ln in zip(self.linL_critic_tower, self.lnL_critic_tower):
             self.add_module(f'lay_lin_tower{lix}', lin)
             self.add_module(f'lay_ln_tower{lix}', ln)
             lix += 1
 
+        # Critic value
         self.value = LayDense(
             in_features=    next_in,
             out_features=   1,
             activation=     None)
 
+        # Actor policy logits
         self.logits = LayDense(
             in_features=    next_in,
             out_features=   num_actions,
@@ -84,9 +88,9 @@ class A2CModule(Module):
             if self.lay_norm: out = ln(out)
 
         out_tower = out
-        if self.linL_tower:
+        if self.linL_critic_tower:
             out_tower = inp
-            for lin,ln in zip(self.linL_tower,self.lnL_tower):
+            for lin,ln in zip(self.linL_critic_tower, self.lnL_critic_tower):
                 out_tower = lin(out_tower)
                 zsL.append(zeroes(out_tower))
                 if self.lay_norm: out_tower = ln(out_tower)
@@ -115,8 +119,8 @@ class A2CModule(Module):
         logits = out['logits']
 
         advantage = dreturns - value
-
         advantage_nograd = advantage.detach() # to prevent flow of Actor loss gradients to Critic network
+
         if self.clamp_advantage is not None:
             advantage_nograd = torch.clamp(
                 input=  advantage_nograd,
