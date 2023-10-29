@@ -128,25 +128,23 @@ class A2CModule(Module):
                 max=    self.clamp_advantage)
 
         if self.use_scaled_ce:
-            actor_ce_scaled = scaled_cross_entropy(
+            actor_ce = scaled_cross_entropy(
                 labels= actions_taken,
                 scale=  advantage_nograd,
                 probs=  out['probs'])
         else:
             actor_ce = torch.nn.functional.cross_entropy(logits, actions_taken, reduction='none')
-            actor_ce_scaled = actor_ce * advantage_nograd
+            actor_ce = actor_ce * advantage_nograd
 
-        loss_actor_scaled_mean = torch.mean(actor_ce_scaled)
+        loss_actor = torch.mean(actor_ce)
 
-        if self.use_huber: loss_critic = torch.nn.functional.huber_loss(value, dreturns, reduction='none')
-        else:              loss_critic = advantage * advantage  # MSE
-
-        loss_critic_mean = torch.mean(loss_critic)
+        if self.use_huber: loss_critic = torch.nn.functional.huber_loss(input=value, target=dreturns)
+        else:              loss_critic = torch.nn.functional.mse_loss(input=value, target=dreturns)
 
         out.update({
             'advantage':    advantage,
-            'loss_actor':   loss_actor_scaled_mean,
-            'loss_critic':  loss_critic_mean,
-            'loss':         loss_actor_scaled_mean + loss_critic_mean})
+            'loss_actor':   loss_actor,
+            'loss_critic':  loss_critic,
+            'loss':         loss_actor + loss_critic})
 
         return out
