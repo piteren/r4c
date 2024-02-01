@@ -50,7 +50,7 @@ class ACCritic:
         if self._tbwr:
 
             zeroes = metrics.pop('critic_zeroes')
-            self.zepro.process(zs=zeroes, step=self._upd_step)
+            self.zepro.process(zeroes=zeroes, step=self._upd_step)
 
             metrics.pop('critic_qvs')
             for k, v in metrics.items():

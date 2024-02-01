@@ -6,7 +6,6 @@ from r4c.policy_gradients.pg_actor import PGActor
 from r4c.policy_gradients.actor_critic.ac_critic import ACCritic
 
 
-
 class ACActor(PGActor):
 
     def __init__(
@@ -17,7 +16,10 @@ class ACActor(PGActor):
 
         # split kwargs assuming that Critic kwargs start with 'critic_'
         c_kwargs = {k[7:]: kwargs[k] for k in kwargs if k.startswith('critic_')}
-        for k in c_kwargs: kwargs.pop(f'critic_{k}')
+        for k in c_kwargs:
+            kwargs.pop(f'critic_{k}')
+        if 'logger' in kwargs:
+            c_kwargs['logger'] = kwargs['logger']
 
         PGActor.__init__(
             self,
@@ -35,8 +37,8 @@ class ACActor(PGActor):
         self._rlog.info('*** ACActor *** initialized')
         self._rlog.info(f'> critic: {critic_class.__name__}')
 
-    # prepares actor and critic data
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
+        """ prepares actor and critic data """
 
         training_data = {
             'observations': batch['observations'],
@@ -57,8 +59,8 @@ class ACActor(PGActor):
 
         return training_data
 
-    # updates both NNs
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
+        """ updates both NNs """
 
         actor_training_data = {k: training_data[k] for k in ['observations','actions','dreturns']}
         actor_metrics = super()._update(training_data=actor_training_data)
