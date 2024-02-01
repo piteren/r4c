@@ -2,11 +2,10 @@ import torch
 from torchness.motorch import Module
 from torchness.types import TNS, DTNS
 from torchness.layers import LayDense, zeroes
-from torchness.base_elements import scaled_cross_entropy
 
 
-# baseline Policy Gradient Actor Module
 class PGActorModule(Module):
+    """ baseline Policy Gradient Actor Module """
 
     def __init__(
             self,
@@ -15,7 +14,6 @@ class PGActorModule(Module):
             n_hidden: int=      2,
             hidden_width: int=  12,
             lay_norm=           False,
-            use_scaled_ce=      False, # experimental Scaled Cross Entropy loss
             seed=               121):
 
         torch.nn.Module.__init__(self)
@@ -44,8 +42,6 @@ class PGActorModule(Module):
             in_features=    next_in,
             out_features=   num_actions,
             activation=     None)
-
-        self.use_scaled_ce = use_scaled_ce
 
     def forward(self, observations:TNS) -> DTNS:
 
@@ -77,16 +73,8 @@ class PGActorModule(Module):
         out = self(observations)
         logits = out['logits']
 
-        if self.use_scaled_ce:
-            ceo = scaled_cross_entropy(
-                labels= actions_taken,
-                scale=  dreturns,
-                probs=  out['probs'])
-            actor_ce = ceo['cross_entropy']
-            actor_ce_scaled = ceo['scaled_cross_entropy']
-        else:
-            actor_ce = torch.nn.functional.cross_entropy(input=logits, target=actions_taken, reduction='none')
-            actor_ce_scaled = actor_ce * dreturns
+        actor_ce = torch.nn.functional.cross_entropy(input=logits, target=actions_taken, reduction='none')
+        actor_ce_scaled = actor_ce * dreturns
 
         out.update({
             'cross_entropy':    torch.mean(actor_ce),

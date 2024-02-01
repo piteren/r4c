@@ -2,7 +2,6 @@ import torch
 from torchness.types import TNS, DTNS
 from torchness.motorch import Module
 from torchness.layers import LayDense, zeroes
-from torchness.base_elements import scaled_cross_entropy
 from typing import Optional
 
 
@@ -18,7 +17,6 @@ class A2CModule(Module):
             hidden_width: int=                  50,
             lay_norm: bool=                     False,
             clamp_advantage: Optional[float]=   0.5,    # limits advantage abs value
-            use_scaled_ce: bool=                True,   # experimental Scaled Cross Entropy loss
             use_huber: bool=                    False,  # for True uses Huber loss for Critic
             opt_class=                          torch.optim.Adam,
             #opt_class=                          torch.optim.SGD,
@@ -71,7 +69,6 @@ class A2CModule(Module):
             activation=     None)
 
         self.clamp_advantage = clamp_advantage
-        self.use_scaled_ce = use_scaled_ce
         self.use_huber = use_huber
 
     def forward(self, observations:TNS) -> DTNS:
@@ -127,14 +124,8 @@ class A2CModule(Module):
                 min=    -self.clamp_advantage,
                 max=    self.clamp_advantage)
 
-        if self.use_scaled_ce:
-            actor_ce_scaled = scaled_cross_entropy(
-                labels= actions_taken,
-                scale=  advantage_nograd,
-                probs=  out['probs'])
-        else:
-            actor_ce = torch.nn.functional.cross_entropy(logits, actions_taken, reduction='none')
-            actor_ce_scaled = actor_ce * advantage_nograd
+        actor_ce = torch.nn.functional.cross_entropy(logits, actions_taken, reduction='none')
+        actor_ce_scaled = actor_ce * advantage_nograd
 
         loss_actor_scaled_mean = torch.mean(actor_ce_scaled)
 
