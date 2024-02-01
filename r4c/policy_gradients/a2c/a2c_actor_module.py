@@ -23,9 +23,11 @@ class A2CModule(Module):
             #opt_momentum=                       0.5,
             #opt_nesterov=                       True,
             # RMSProp, Adadelta
+            logger=                             None,
+            loglevel=                           20,
     ):
 
-        torch.nn.Module.__init__(self)
+        Module.__init__(self, logger=logger, loglevel=loglevel)
 
         hidden_layers = [hidden_width] * n_hidden
         lay_shapeL = []

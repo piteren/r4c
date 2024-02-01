@@ -14,8 +14,8 @@ from r4c.policy_gradients.pg_actor_module import PGActorModule
 
 
 
-# Policy Gradient Trainable Actor, NN based
 class PGActor(TrainableActor, ABC):
+    """ Policy Gradient Trainable Actor, MOTorch (NN) based """
 
     def __init__(
             self,
@@ -52,17 +52,17 @@ class PGActor(TrainableActor, ABC):
             intervals=  (10, 50, 100),
             tbwr=       self._tbwr) if self._tbwr else None
 
-    # prepares policy probs
     def _get_policy_probs(self, observation:np.ndarray) -> np.ndarray:
+        """ prepares policy probs """
         return self.model(observations=observation)['probs'].detach().cpu().numpy()
 
-    # returns policy action based on policy probs
     def _get_action(
             self,
             observation: np.ndarray,
             explore: bool = False,
             sample: bool=   False,
     ) -> NUM:
+        """ returns policy action based on policy probs """
 
         if explore:
             return int(np.random.choice(self.envy.num_actions()))
@@ -71,8 +71,8 @@ class PGActor(TrainableActor, ABC):
         if sample: return int(np.random.choice(self.envy.num_actions(), p=probs))
         else:      return int(np.argmax(probs))
 
-    # extracts from a batch + prepares dreturns
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
+        """ extracts from a batch + prepares dreturns """
 
         episode_rewards = split_rewards(batch['rewards'], batch['terminals'])
 
@@ -91,7 +91,6 @@ class PGActor(TrainableActor, ABC):
             'actions':      batch['actions'],
             'dreturns':     np.asarray(dreturns)}
 
-    # updates NN
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
         return self.model.backward(
             observations=   training_data['observations'],
@@ -114,7 +113,7 @@ class PGActor(TrainableActor, ABC):
                 self._tbwr.add(value=pm[k], tag=f'actor/{k}', step=self._upd_step)
 
             zeroes = metrics.pop('zeroes')
-            self._zepro.process(zs=zeroes, step=self._upd_step)
+            self._zepro.process(zeroes=zeroes, step=self._upd_step)
 
             metrics.pop('logits')
             for k,v in metrics.items():
