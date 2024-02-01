@@ -18,8 +18,9 @@ class ACActor(PGActor):
         c_kwargs = {k[7:]: kwargs[k] for k in kwargs if k.startswith('critic_')}
         for k in c_kwargs:
             kwargs.pop(f'critic_{k}')
-        if 'logger' in kwargs:
-            c_kwargs['logger'] = kwargs['logger']
+        for k in ['logger','loglevel']:
+            if k in kwargs:
+                c_kwargs[k] = kwargs[k]
 
         PGActor.__init__(
             self,
