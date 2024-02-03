@@ -9,31 +9,33 @@ from torchness.tbwr import TBwr
 from typing import Optional, Dict, Any, Tuple, List
 
 from r4c.envy import RLEnvy
-from r4c.helpers import RLException, ExperienceMemory, plot_obs_act, plot_rewards
+from r4c.helpers import RLException, plot_obs_act, plot_rewards
+from r4c.experience_memory import ExperienceMemory
 
 
-# just abstract Actor
 class Actor(ABC):
+    """ Actor (abstract) """
 
-    # returns Actor action based on observation according to Actor policy
     @abstractmethod
-    def _get_action(self, observation:object) -> object: pass
+    def _get_action(self, observation:object) -> object:
+        """ returns Actor action from Actor policy based on observation """
+        pass
 
 
-# Plays & Learns on Envy
 class TrainableActor(Actor, ABC):
+    """ Plays & Learns on Envy """
 
     def __init__(
             self,
             envy: RLEnvy,
             name: Optional[str]=        None,
             add_stamp: bool=            True,
-            exploration: float=         0.0,            # exploration probability while building experience
-            sampled_TR: float=          0.0,            # sampling probability while building experience
-            sampled_PL: float=          0.0,            # sampling probability while playing
+            exploration: float=         0.0,        # exploration probability while building experience
+            sampled_TR: float=          0.0,        # sampling probability while building experience
+            sampled_PL: float=          0.0,        # sampling probability while playing
             batch_size: int=            64,
-            mem_batches: Optional[int]= None,           # ExperienceMemory max size (in number of batches)
-            sample_memory: bool=        False,          # sample batch from memory or get_all and reset
+            mem_batches: Optional[int]= None,       # ExperienceMemory max size (in number of batches), for None is unlimited
+            sample_memory: bool=        False,      # sample batch from memory or get_all and reset
             save_topdir: str=           '_models',
             logger: Optional=           None,
             loglevel: int=              20,
@@ -51,7 +53,7 @@ class TrainableActor(Actor, ABC):
         self.save_topdir = save_topdir
 
         self._rlog = logger or get_pylogger(
-            folder= self.get_save_dir(),
+            folder= self.save_dir,
             level=  loglevel)
         self._rlog.info(f'*** {self.__class__.__name__} (TrainableActor) : {self.name} *** initializes..')
 
@@ -74,36 +76,37 @@ class TrainableActor(Actor, ABC):
         if self.hpmser_mode:
             publish_TB = False
 
-        self._tbwr = TBwr(logdir=self.get_save_dir()) if publish_TB else None
+        self._tbwr = TBwr(logdir=self.save_dir) if publish_TB else None
         self._upd_step = 0  # global update step
 
         np.random.seed(self.seed)
 
         self._rlog.debug(self)
 
-    # prepares vector (np.ndarray) from observation, first tries to get from RLEnvy
     def _observation_vector(self, observation:object) -> np.ndarray:
+        """ prepares vector (np.ndarray) from observation, first tries to get from RLEnvy """
         try:
             return self.envy.observation_vector(observation)
         except RLException:
             raise RLException ('TrainableActor should implement get_observation_vec()')
 
-    # adds exploration & sampling
     @abstractmethod
     def _get_action(
             self,
-            observation: np.ndarray,    # ..vector type
+            observation: np.ndarray,
             explore: bool=  False,      # returns exploring action
             sample: bool=   False,      # samples action (from policy probability)
-    ) -> NUM: pass
+    ) -> NUM:
+        """ adds exploration & sampling """
+        pass
 
-    # single  move of Actor on Envy (observation > action > reward)
     def _move(self, training:bool) -> Tuple[
         np.ndarray, # observation
         NUM,        # action
         float,      # reward
         np.ndarray, # next observation
     ]:
+        """ single  move of Actor on Envy (observation > action > reward) """
 
         # eventually (safety) reset Envy
         if self.envy.is_terminal():
@@ -124,7 +127,6 @@ class TrainableActor(Actor, ABC):
 
         return observation_vector, action, reward, next_observation_vector
 
-    # plays some steps on Envy
     def run_play(
             self,
             steps: Optional[int]=   None,
@@ -140,14 +142,16 @@ class TrainableActor(Actor, ABC):
         List[bool],         # terminals
         List[bool],         # wons
     ]:
+        """ Actor plays some steps on Envy and returns data """
 
         if steps is None:
-            steps = self.envy.get_max_steps()
+            steps = self.envy.max_steps
 
         if steps is None:
             raise RLException('Actor cannot play on Envy where max_steps is None and given steps is None')
 
-        if reset: self.envy.reset()
+        if reset:
+            self.envy.reset()
 
         observations = []
         actions = []
@@ -165,9 +169,10 @@ class TrainableActor(Actor, ABC):
             rewards.append(reward)
             next_observations.append(next_observation)
             terminals.append(self.envy.is_terminal())
-            wons.append(self.envy.won())
+            wons.append(self.envy.has_won())
 
-            if inspect: self.envy.render()
+            if inspect:
+                self.envy.render()
 
             if terminals[-1] and break_terminal:
                 break
@@ -186,16 +191,16 @@ class TrainableActor(Actor, ABC):
 
         return observations, actions, rewards, next_observations, terminals, wons
 
-    # RL training procedure, returns dict with some training stats
     def run_train(
             self,
             num_batches: int,
-            test_freq: Optional[int],
-            test_episodes: Optional[int],
-            test_max_steps: Optional[int] = None,   # max number of episode steps while testing
+            test_freq: Optional[int]=       None,
+            test_episodes: Optional[int]=   None,
+            test_max_steps: Optional[int]=  None,   # max number of episode steps while testing
             inspect: bool=                  False,  # inspects data while updating / testing
             break_ntests: Optional[int]=    None,   # breaks training after all test episodes succeeded N times in a row
     ) -> dict:
+        """ RL training procedure, returns dict with some training stats """
 
         self.envy.reset()
         self.memory.clear()
@@ -210,11 +215,11 @@ class TrainableActor(Actor, ABC):
         succeeded_row_curr = 0      # current number of succeeded tests in a row
         succeeded_row_max = 0       # max number of succeeded tests in a row
 
-        batch_ix = 1 # index starts from 1
+        batch_ix = 1                # index, starts from 1
         stime = time.time()
         while batch_ix <= num_batches:
 
-            inspect_now = inspect and batch_ix % test_freq == 0
+            inspect_now = inspect and test_freq and batch_ix % test_freq == 0
 
             ### play for a batch of data
 
@@ -251,7 +256,7 @@ class TrainableActor(Actor, ABC):
 
             ### test
 
-            if batch_ix % test_freq == 0:
+            if test_freq and batch_ix % test_freq == 0:
 
                 tr_nfo = f'# {batch_ix:3} term:{n_terminals}(+{n_terminals - last_terminals}) loss:{loss_mavg():.4f}'
                 last_terminals = n_terminals
@@ -266,20 +271,21 @@ class TrainableActor(Actor, ABC):
                 ts_one_nfo = f'1TS: {len(actions)} actions, return {sum(rewards):.1f} ({"won" if sum(wons) else "lost"})'
 
                 # few tests
-                avg_won, avg_return = self.test_on_episodes(
-                    n_episodes= test_episodes,
-                    max_steps=  test_max_steps)
-                ts_nfo = f'{test_episodes}xTS: avg_won:{avg_won * 100:.1f}%, avg_return:{avg_return:.1f}'
+                if test_episodes:
+                    avg_won, avg_return = self.test_on_episodes(
+                        n_episodes= test_episodes,
+                        max_steps=  test_max_steps)
+                    ts_nfo = f'{test_episodes}xTS: avg_won:{avg_won * 100:.1f}%, avg_return:{avg_return:.1f}'
 
-                if avg_won == 1:
-                    succeeded_row_curr += 1
-                    if succeeded_row_curr > succeeded_row_max: succeeded_row_max = succeeded_row_curr
-                else:
-                    succeeded_row_curr = 0
+                    if avg_won == 1:
+                        succeeded_row_curr += 1
+                        if succeeded_row_curr > succeeded_row_max: succeeded_row_max = succeeded_row_curr
+                    else:
+                        succeeded_row_curr = 0
 
-                self._rlog.info(f'{tr_nfo} -- {ts_one_nfo} -- {ts_nfo}')
+                    self._rlog.info(f'{tr_nfo} -- {ts_one_nfo} -- {ts_nfo}')
 
-                # INFO: Envy should be reset after tests and already will be since every test run ends here with terminal
+                    # INFO: Envy should be reset after tests and already will be since every test run ends here with terminal
 
             batch_ix += 1
 
@@ -295,20 +301,18 @@ class TrainableActor(Actor, ABC):
             'n_updates_done':       batch_ix-1,
             'succeeded_row_max':    succeeded_row_max}
 
-    # extracts data from a batch + eventually adds new
     @abstractmethod
-    def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]: pass
+    def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
+        """ extracts data from a batch + eventually adds new """
+        pass
 
-    # updates policy or value function (Actor, Critic ar any other component), returns metrics with 'loss'
     @abstractmethod
-    def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]: pass
+    def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
+        """ updates policy or value function (Actor, Critic ar any other component), returns metrics with 'loss' """
+        pass
 
-    # plays n episodes, returns tuple with won_factor & avg_reward
-    def test_on_episodes(
-            self,
-            n_episodes: int=            10,
-            max_steps: Optional[int]=   None,
-    ) -> Tuple[float, float]:
+    def test_on_episodes(self, n_episodes:int=10, max_steps:Optional[int]=None) -> Tuple[float, float]:
+        """ plays n episodes, returns tuple with won_factor & avg_reward """
         n_won = 0
         sum_rewards = 0
         for e in range(n_episodes):
@@ -322,7 +326,6 @@ class TrainableActor(Actor, ABC):
             sum_rewards += sum(rewards)
         return n_won/n_episodes, sum_rewards/n_episodes
 
-    # publishes to TB / inspects data
     def _publish(
             self,
             batch: Dict[str,np.ndarray],
@@ -330,6 +333,7 @@ class TrainableActor(Actor, ABC):
             metrics: Dict[str,Any],
             inspect: bool,
     ) -> None:
+        """ publishes to TB / inspects data """
 
         if self._tbwr:
             self._tbwr.add(value=metrics['loss'], tag=f'actor/loss', step=self._upd_step)
@@ -338,8 +342,9 @@ class TrainableActor(Actor, ABC):
             plot_obs_act(observations=batch['observations'], actions=batch['actions'])
             plot_rewards(rewards=batch['rewards'])
 
-    # returns Actor save directory
-    def get_save_dir(self) -> str:
+    @property
+    def save_dir(self) -> str:
+        """ returns Actor save directory """
         return f'{self.save_topdir}/{self.name}'
 
     @abstractmethod

@@ -82,7 +82,7 @@ class QTableActor(QLearningActor):
         self.__qtable.put_QV(
             observation=    observation,
             action=         action,
-            new_qv=old_qv + self.update_rate * diff)
+            new_qv=         old_qv + self.update_rate * diff)
 
         return abs(diff)
 
@@ -90,12 +90,12 @@ class QTableActor(QLearningActor):
         save_data = {
             'update_rate': self.update_rate,
             'qtable':      self.__qtable}
-        folder = self.get_save_dir()
+        folder = self.save_dir
         prep_folder(folder)
         w_pickle(save_data, f'{folder}/qt.data')
 
     def load(self):
-        saved_data = r_pickle(f'{self.get_save_dir()}/qt.data')
+        saved_data = r_pickle(f'{self.save_dir}/qt.data')
         self.update_rate = saved_data['update_rate']
         self.__qtable = saved_data['qtable']
 
