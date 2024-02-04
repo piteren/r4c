@@ -59,11 +59,12 @@ class PGActorModule(Module):
             if self.lay_norm: out = ln(out)
 
         logits = self.logits(out)
-        probs = torch.nn.functional.softmax(input=logits, dim=-1)
+        dist = torch.distributions.Categorical(logits=logits)
 
         return {
             'logits':       logits,
-            'probs':        probs,
+            'probs':        dist.probs,
+            'entropy':      dist.entropy().mean(),
             'zeroes':       zsL}
 
     def loss(
@@ -74,13 +75,16 @@ class PGActorModule(Module):
     ) -> DTNS:
 
         out = self(observations)
-        logits = out['logits']
 
-        actor_ce = torch.nn.functional.cross_entropy(input=logits, target=actions_taken, reduction='none')
-        actor_ce_scaled = actor_ce * dreturns
+        actor_ce = torch.nn.functional.cross_entropy(
+            input=      out['logits'],
+            target=     actions_taken,
+            reduction=  'none')
+        loss = torch.mean(actor_ce * dreturns)
 
         out.update({
             'cross_entropy':    torch.mean(actor_ce),
-            'loss':             torch.mean(actor_ce_scaled)})
+            'entropy':          out['entropy'],
+            'loss':             loss})
 
         return out

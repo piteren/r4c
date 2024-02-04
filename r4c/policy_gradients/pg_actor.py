@@ -1,4 +1,3 @@
-from abc import ABC
 import numpy as np
 from pypaq.pytypes import NUM
 from pypaq.pms.base import POINT
@@ -7,14 +6,14 @@ from torchness.comoneural.zeroes_processor import ZeroesProcessor
 from torchness.comoneural.avg_probs import avg_mm_probs
 from typing import Optional, Dict, Any
 
-from r4c.helpers import zscore_norm, discounted_return, movavg_return, split_rewards, plot_obs_act, plot_rewards
+from r4c.helpers import zscore_norm, da_returns, bmav_rewards, split_rewards
 from r4c.actor import TrainableActor
 from r4c.envy import FiniteActionsRLEnvy
 from r4c.policy_gradients.pg_actor_module import PGActorModule
 
 
 
-class PGActor(TrainableActor, ABC):
+class PGActor(TrainableActor):
     """ Policy Gradient Trainable Actor, MOTorch (NN) based """
 
     def __init__(
@@ -22,18 +21,18 @@ class PGActor(TrainableActor, ABC):
             envy: FiniteActionsRLEnvy,
             module_type: Optional[type(Module)]=    PGActorModule,
             discount: float=                        0.95,   # discount factor for discounted returns
-            use_mavg: bool=                         True,   # use MovAvg (moving average, reversed) to calculate discounted returns
-            mavg_factor: float=                     0.3,    # MovAvg factor
+            use_bmav: bool=                         True,   # use MovAvg (moving average, reversed) to calculate discounted returns
+            bmav_factor: float=                     0.3,    # MovAvg factor
             do_zscore: bool=                        True,   # apply zscore norm to discounted returns
             motorch_point: Optional[POINT]=         None,
             **kwargs):
 
         TrainableActor.__init__(self, envy=envy, **kwargs)
-        self.envy = envy  # to update type (for pycharm only)
+        self.envy = envy  # to update the type (for pycharm)
 
         self.discount = discount
-        self.use_mavg = use_mavg
-        self.movavg_factor = mavg_factor
+        self.use_bmav = use_bmav
+        self.movavg_factor = bmav_factor
         self.do_zscore = do_zscore
 
         motorch_point = motorch_point or {}
@@ -56,20 +55,17 @@ class PGActor(TrainableActor, ABC):
         """ prepares policy probs """
         return self.model(observations=observation)['probs'].detach().cpu().numpy()
 
-    def _get_action(
-            self,
-            observation: np.ndarray,
-            explore: bool = False,
-            sample: bool=   False,
-    ) -> NUM:
-        """ returns policy action based on policy probs """
+    def _get_random_action(self) -> NUM:
+        return int(np.random.choice(self.envy.num_actions()))
 
-        if explore:
-            return int(np.random.choice(self.envy.num_actions()))
-
+    def _get_action(self, observation:np.ndarray) -> NUM:
+        sample =        (self._is_training and np.random.rand() < self.sample_TR
+                  or not self._is_training and np.random.rand() < self.sample_PL)
         probs = self._get_policy_probs(observation)
-        if sample: return int(np.random.choice(self.envy.num_actions(), p=probs))
-        else:      return int(np.argmax(probs))
+        if sample:
+            return int(np.random.choice(self.envy.num_actions(), p=probs))
+        else:
+            return int(np.argmax(probs))
 
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
         """ extracts from a batch + prepares dreturns """
@@ -77,12 +73,12 @@ class PGActor(TrainableActor, ABC):
         episode_rewards = split_rewards(batch['rewards'], batch['terminals'])
 
         dreturns = []
-        if self.use_mavg:
+        if self.use_bmav:
             for rs in episode_rewards:
-                dreturns += movavg_return(rewards=rs, factor=self.movavg_factor)
+                dreturns += bmav_rewards(rewards=rs, factor=self.movavg_factor)
         else:
             for rs in episode_rewards:
-                dreturns += discounted_return(rewards=rs, discount=self.discount)
+                dreturns += da_returns(rewards=rs, discount=self.discount)
         if self.do_zscore:
             dreturns = zscore_norm(dreturns)
 
@@ -100,12 +96,14 @@ class PGActor(TrainableActor, ABC):
     def _publish(
             self,
             batch: Dict[str,np.ndarray],
-            training_data: Dict[str,np.ndarray],
             metrics: Dict[str,Any],
-            inspect: bool,
     ) -> None:
 
         if self._tbwr:
+
+            self._tbwr.add_histogram(values=batch['observations'], tag='observations', step=self._upd_step)
+
+            metrics.pop('logits')
 
             probs = metrics.pop('probs').cpu().detach().numpy()
             pm = avg_mm_probs(probs)
@@ -115,17 +113,8 @@ class PGActor(TrainableActor, ABC):
             zeroes = metrics.pop('zeroes')
             self._zepro.process(zeroes=zeroes, step=self._upd_step)
 
-            metrics.pop('logits')
             for k,v in metrics.items():
                 self._tbwr.add(value=v, tag=f'actor/{k}', step=self._upd_step)
-
-        if inspect:
-            plot_obs_act(observations=batch['observations'], actions=batch['actions'])
-            plot_rewards(
-                rewards=        batch['rewards'],
-                terminals=      batch['terminals'],
-                discount=       self.discount,
-                movavg_factor=  self.movavg_factor)
 
     def save(self):
         self.model.save()
@@ -136,7 +125,7 @@ class PGActor(TrainableActor, ABC):
     def __str__(self) -> str:
         nfo =  f'{super().__str__()}\n'
         nfo += f'> discount: {self.discount}\n'
-        nfo += f'> use_mavg: {self.use_mavg}\n'
+        nfo += f'> use_bmav: {self.use_bmav}\n'
         nfo += f'> movavg_factor: {self.movavg_factor}\n'
         nfo += f'> do_zscore: {self.do_zscore}\n'
         nfo += str(self.model)

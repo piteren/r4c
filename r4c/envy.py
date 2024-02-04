@@ -4,7 +4,7 @@ from pypaq.pytypes import NUM
 from pypaq.lipytools.pylogger import get_pylogger
 from typing import List, Optional
 
-from r4c.helpers import RLException
+from r4c.helpers import R4Cexception
 
 
 class Envy(ABC):
@@ -81,7 +81,7 @@ class RLEnvy(Envy, ABC):
         It may be implemented by RLEnvy, but is not mandatory,
         otherwise Actor should implement on itself since it is in fact Actor duty.
         Be careful about dtype and values, NN may not accept dtype==int. """
-        raise RLException('RLEnvy not implemented observation_vector()')
+        raise R4Cexception('RLEnvy not implemented observation_vector()')
 
 
 class FiniteActionsRLEnvy(RLEnvy):

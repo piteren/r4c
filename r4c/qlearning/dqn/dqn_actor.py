@@ -5,7 +5,7 @@ from torchness.motorch import MOTorch, Module
 from torchness.comoneural.zeroes_processor import ZeroesProcessor
 from typing import Optional, Dict, Any
 
-from r4c.helpers import RLException
+from r4c.helpers import R4Cexception
 from r4c.qlearning.ql_actor import QLearningActor
 from r4c.qlearning.dqn.dqn_actor_module import DQNModel
 
@@ -51,7 +51,7 @@ class DQNActor(QLearningActor, ABC):
             observation: np.ndarray,
             action: int,
             new_qv: float) -> float:
-        raise RLException('not implemented, should not be used since DQNActor only updates with a batch')
+        raise R4Cexception('not implemented, should not be used since DQNActor only updates with a batch')
 
     # updates NN
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
