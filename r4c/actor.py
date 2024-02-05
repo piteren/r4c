@@ -201,9 +201,8 @@ class TrainableActor(Actor, ABC):
             kw = {'rewards': rewards}
             if 'discount' in self.__dict__:
                 kw.update({
-                    'terminals':        terminals,
-                    'discount':         self.__dict__['discount'],
-                    'movavg_factor':    self.__dict__['movavg_factor'],
+                    'terminals':    terminals,
+                    'discount':     self.__dict__['discount'],
                 })
             plot_rewards(**kw)
 

@@ -6,7 +6,7 @@ from torchness.comoneural.zeroes_processor import ZeroesProcessor
 from torchness.comoneural.avg_probs import avg_mm_probs
 from typing import Optional, Dict, Any
 
-from r4c.helpers import zscore_norm, da_returns, bmav_rewards, split_rewards
+from r4c.helpers import zscore_norm, da_returns, split_rewards
 from r4c.actor import TrainableActor
 from r4c.envy import FiniteActionsRLEnvy
 from r4c.policy_gradients.pg_actor_module import PGActorModule
@@ -21,8 +21,6 @@ class PGActor(TrainableActor):
             envy: FiniteActionsRLEnvy,
             module_type: Optional[type(Module)]=    PGActorModule,
             discount: float=                        0.95,   # discount factor for discounted returns
-            use_bmav: bool=                         True,   # use MovAvg (moving average, reversed) to calculate discounted returns
-            bmav_factor: float=                     0.3,    # MovAvg factor
             do_zscore: bool=                        True,   # apply zscore norm to discounted returns
             motorch_point: Optional[POINT]=         None,
             **kwargs):
@@ -31,8 +29,6 @@ class PGActor(TrainableActor):
         self.envy = envy  # to update the type (for pycharm)
 
         self.discount = discount
-        self.use_bmav = use_bmav
-        self.movavg_factor = bmav_factor
         self.do_zscore = do_zscore
 
         motorch_point = motorch_point or {}
@@ -73,12 +69,8 @@ class PGActor(TrainableActor):
         episode_rewards = split_rewards(batch['rewards'], batch['terminals'])
 
         dreturns = []
-        if self.use_bmav:
-            for rs in episode_rewards:
-                dreturns += bmav_rewards(rewards=rs, factor=self.movavg_factor)
-        else:
-            for rs in episode_rewards:
-                dreturns += da_returns(rewards=rs, discount=self.discount)
+        for rs in episode_rewards:
+            dreturns += da_returns(rewards=rs, discount=self.discount)
         if self.do_zscore:
             dreturns = zscore_norm(dreturns)
 
@@ -124,9 +116,7 @@ class PGActor(TrainableActor):
 
     def __str__(self) -> str:
         nfo =  f'{super().__str__()}\n'
-        nfo += f'> discount: {self.discount}\n'
-        nfo += f'> use_bmav: {self.use_bmav}\n'
-        nfo += f'> movavg_factor: {self.movavg_factor}\n'
+        nfo += f'> discount:  {self.discount}\n'
         nfo += f'> do_zscore: {self.do_zscore}\n'
         nfo += str(self.model)
         return nfo

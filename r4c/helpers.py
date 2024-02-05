@@ -30,17 +30,6 @@ def da_returns(rewards:List[float], discount:float) -> List[float]:
     return list(dar)
 
 
-def bmav_rewards(rewards:List[float], factor:float) -> List[float]:
-    """ prepares list of backward moving average rewards """
-    mvr = np.zeros_like(rewards, dtype=float)
-    s = rewards[-1]
-    bmav = MovAvg(factor=factor, first_avg=False)
-    mvr[-1] = bmav.upd(s)
-    for i in reversed(range(len(rewards[:-1]))):
-        mvr[i] = bmav.upd(rewards[i])
-    return list(mvr)
-
-
 def update_terminal_QVs(qvs:np.ndarray, terminals:np.ndarray) -> None:
     """ sets terminal states of QVs to zeroes (in place) """
     qvs_terminal = np.zeros_like(qvs[0])
@@ -82,7 +71,6 @@ def plot_rewards(
         rewards,
         terminals: Optional=    None,
         discount: float=        0.9,
-        movavg_factor: float=   0.1,
 ):
     """ plots batch of rewards and some variants """
 
@@ -91,14 +79,11 @@ def plot_rewards(
 
     if terminals is not None:
         da_ret = []
-        bm_rew = []
         for rs in split_rewards(rewards, terminals):
             da_ret += da_returns(rewards=rs, discount=discount)
-            bm_rew += bmav_rewards(rewards=rs, factor=movavg_factor)
         da_ret_znorm = zscore_norm(da_ret)
-        bm_rew_znorm = zscore_norm(bm_rew)
 
-        ys += [da_ret, bm_rew, da_ret_znorm, bm_rew_znorm]
-        names += ['da_returns', 'bmav_rewards', 'da_returns_znorm', 'bmav_rewards_znorm']
+        ys += [da_ret, da_ret_znorm]
+        names += ['da_returns', 'da_returns_znorm']
 
     two_dim_multi(ys=ys, names=names, legend_loc='lower left')
