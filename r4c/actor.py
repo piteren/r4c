@@ -8,8 +8,8 @@ import time
 from torchness.tbwr import TBwr
 from typing import Optional, Dict, Any, Tuple, List
 
-from r4c.envy import RLEnvy
-from r4c.helpers import R4Cexception, plot_obs_act, plot_rewards
+from r4c.envy import RLEnvy, FiniteActionsRLEnvy
+from r4c.helpers import R4Cexception, zscore_norm, da_returns, split_rewards, plot_obs_act, plot_rewards
 from r4c.experience_memory import ExperienceMemory
 
 
@@ -21,7 +21,6 @@ class Actor(ABC):
             envy: RLEnvy,
             name: Optional[str]=    None,
             add_stamp: bool=        True,
-            sample_PL: float=       0.0,        # sampling probability of playing
             save_topdir: str=       '_models',
             logger: Optional=       None,
             loglevel: int=          20,
@@ -44,8 +43,6 @@ class Actor(ABC):
 
         self.envy = envy
         self._rlog.info(f'> Envy: {self.envy.__class__.__name__}')
-
-        self.sample_PL = sample_PL
 
     def _observation_vector(self, observation:object) -> np.ndarray:
         """ prepares vector (np.ndarray) from observation, first tries to get from RLEnvy """
@@ -76,11 +73,12 @@ class TrainableActor(Actor, ABC):
 
     def __init__(
             self,
-            exploration: float=         0.0,        # exploration probability while building experience
-            sample_TR: float=           0.0,        # sampling probability of training
+            exploration: float=         0.0,    # exploration probability while building experience (TR)
+            discount: float=            0.95,   # discount factor for discounted returns
+            do_zscore: bool=            False,  # apply zscore norm to discounted returns
             batch_size: int=            64,
-            mem_batches: Optional[int]= None,       # ExperienceMemory max size (in number of batches), for None is unlimited
-            sample_memory: bool=        False,      # sample batch from memory or get_all and reset
+            mem_batches: Optional[int]= None,   # ExperienceMemory max size (in number of batches), for None is unlimited
+            sample_memory: bool=        False,  # sample batch from memory or get_all and reset
             publish_TB: bool=           True,
             hpmser_mode: bool=          False,
             seed: int=                  123,
@@ -99,8 +97,9 @@ class TrainableActor(Actor, ABC):
         self._rlog.info(f'> initialized ExperienceMemory of max size {mem_max_size}')
         self._sample_memory = sample_memory
 
+        self.discount = discount
+        self.do_zscore = do_zscore
         self.exploration = exploration
-        self.sample_TR = sample_TR
         self.batch_size = batch_size
 
         self.hpmser_mode = hpmser_mode
@@ -117,7 +116,7 @@ class TrainableActor(Actor, ABC):
 
     @abstractmethod
     def _get_random_action(self) -> NUM:
-        """ returns random action """
+        """ returns 100% random action """
         pass
 
     def _move(self) -> Tuple[
@@ -322,10 +321,21 @@ class TrainableActor(Actor, ABC):
             'n_updates_done':       batch_ix-1,
             'succeeded_row_max':    succeeded_row_max}
 
-    @abstractmethod
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
-        """ extracts data from a batch + eventually adds new """
-        pass
+        """ extracts from a batch + prepares dreturns """
+
+        episode_rewards = split_rewards(batch['rewards'], batch['terminals'])
+
+        dreturns = []
+        for rs in episode_rewards:
+            dreturns += da_returns(rewards=rs, discount=self.discount)
+        if self.do_zscore:
+            dreturns = zscore_norm(dreturns)
+
+        return {
+            'observations': batch['observations'],
+            'actions':      batch['actions'],
+            'dreturns':     np.asarray(dreturns)}
 
     @abstractmethod
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
@@ -355,3 +365,43 @@ class TrainableActor(Actor, ABC):
         """ publishes to TB """
         if self._tbwr:
             self._tbwr.add(value=metrics['loss'], tag=f'actor/loss', step=self._upd_step)
+
+    def __str__(self) -> str:
+        nfo =  f'{super().__str__()}\n'
+        nfo += f'> discount:  {self.discount}\n'
+        nfo += f'> do_zscore: {self.do_zscore}\n'
+        return nfo
+
+
+class ProbTRActor(TrainableActor, ABC):
+    """ Probabilistic TrainableActor for FiniteActionsRLEnvy """
+
+    def __init__(
+            self,
+            envy: FiniteActionsRLEnvy,
+            sample_PL: float=   0.0,    # PL sampling probability
+            sample_TR: float=   0.0,    # TR sampling probability
+            **kwargs):
+
+        TrainableActor.__init__(self, envy=envy, **kwargs)
+        self.envy = envy  # to update the type (for pycharm)
+
+        self.sample_PL = sample_PL
+        self.sample_TR = sample_TR
+
+    @abstractmethod
+    def _get_policy_probs(self, observation:np.ndarray) -> np.ndarray:
+        """ prepares policy probs """
+        pass
+
+    def _get_random_action(self) -> NUM:
+        return int(np.random.choice(self.envy.num_actions()))
+
+    def _get_action(self, observation:np.ndarray) -> NUM:
+        sample =        (self._is_training and np.random.rand() < self.sample_TR
+                  or not self._is_training and np.random.rand() < self.sample_PL)
+        probs = self._get_policy_probs(observation)
+        if sample:
+            return int(np.random.choice(self.envy.num_actions(), p=probs))
+        else:
+            return int(np.argmax(probs))
