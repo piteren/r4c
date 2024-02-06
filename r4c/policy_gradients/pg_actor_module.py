@@ -56,7 +56,8 @@ class PGActorModule(Module):
         for lin,ln in zip(self.linL,self.lnL):
             out = lin(out)
             zsL.append(zeroes(out))
-            if self.lay_norm: out = ln(out)
+            if self.lay_norm:
+                out = ln(out)
 
         logits = self.logits(out)
         dist = torch.distributions.Categorical(logits=logits)
