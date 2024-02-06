@@ -1,5 +1,6 @@
 import numpy as np
 from pypaq.pms.base import POINT
+from pypaq.lipytools.pylogger import get_child
 from torchness.motorch import MOTorch, Module
 from torchness.comoneural.zeroes_processor import ZeroesProcessor
 from torchness.comoneural.avg_probs import avg_mm_probs
@@ -29,7 +30,7 @@ class PGActor(ProbTRActor):
             module_type=    module_type,
             name=           self.name,
             seed=           self.seed,
-            logger=         self._rlog,
+            logger=         get_child(self._rlog),
             hpmser_mode=    self.hpmser_mode,
             **motorch_point)
 

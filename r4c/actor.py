@@ -2,7 +2,7 @@ from abc import abstractmethod, ABC
 import numpy as np
 from pypaq.pytypes import NUM
 from pypaq.lipytools.printout import stamp
-from pypaq.lipytools.pylogger import get_pylogger
+from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.moving_average import MovAvg
 import time
 from torchness.tbwr import TBwr
@@ -93,8 +93,8 @@ class TrainableActor(Actor, ABC):
         mem_max_size = batch_size * mem_batches if mem_batches is not None else None
         self.memory = ExperienceMemory(
             max_size=   mem_max_size,
-            seed=       self.seed)
-        self._rlog.info(f'> initialized ExperienceMemory of max size {mem_max_size}')
+            seed=       self.seed,
+            logger=     get_child(self._rlog))
         self._sample_memory = sample_memory
 
         self.discount = discount
@@ -111,8 +111,6 @@ class TrainableActor(Actor, ABC):
         self._upd_step = 0  # global update step
 
         np.random.seed(self.seed)
-
-        self._rlog.debug(self)
 
     @abstractmethod
     def _get_random_action(self) -> NUM:

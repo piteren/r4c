@@ -1,5 +1,6 @@
 import numpy as np
 from pypaq.pytypes import NPL
+from pypaq.lipytools.pylogger import get_pylogger
 from typing import Optional, Dict, Union
 
 
@@ -11,11 +12,20 @@ class ExperienceMemory:
     def __init__(
             self,
             max_size: Optional[int]=    None,
-            seed: int=                  123):
+            seed: int=                  123,
+            logger: Optional =          None,
+            loglevel: int =             20):
+
+        if not logger:
+            logger = get_pylogger(level=loglevel)
+        self.logger = logger
+
         self._mem: Dict[str,np.ndarray] = {}
         self._init_mem()
         self.max_size = max_size
         np.random.seed(seed)
+
+        self.logger.info(f'*** {self.__class__.__name__} *** initialized, size: {self.max_size}')
 
     def _init_mem(self):
         self._mem = {

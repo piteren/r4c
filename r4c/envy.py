@@ -21,7 +21,6 @@ class Envy(ABC):
         self._rlog = logger or get_pylogger(level=loglevel)
         self.seed = seed
         self._rlog.info(f'*** {self.__class__.__name__} (Envy) *** initialized')
-        self._rlog.debug(self)
 
     @abstractmethod
     def get_observation(self) -> object:
