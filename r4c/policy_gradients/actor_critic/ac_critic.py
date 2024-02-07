@@ -6,7 +6,6 @@ from typing import Optional, Dict, Any
 from r4c.policy_gradients.actor_critic.ac_critic_module import ACCriticModule
 
 
-
 class ACCritic:
 
     def __init__(
@@ -45,7 +44,7 @@ class ACCritic:
             next_actions_probs=     training_data['next_actions_probs'],
             rewards=                training_data['rewards'])
 
-    def publish(self, metrics: Dict[str,Any]):
+    def publish(self, metrics:Dict[str,Any]):
 
         if self._tbwr:
 

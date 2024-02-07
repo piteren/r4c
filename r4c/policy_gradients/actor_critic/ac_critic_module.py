@@ -10,9 +10,10 @@ class ACCriticModule(Module):
     def __init__(
             self,
             observation_width=  4,
-            gamma=              0.99,  # discount factor (gamma)
+            gamma=              0.99,  # discount factor (gamma), replaces Actor discount parameter
             num_actions: int=   2,
-            hidden_layers=      (24,24),
+            n_hidden: int=      2,
+            hidden_width: int=  12,
             lay_norm=           False,
             seed=               121,
             logger=             None,
@@ -22,6 +23,7 @@ class ACCriticModule(Module):
         Module.__init__(self, logger=logger, loglevel=loglevel)
 
         self.gamma = gamma
+        hidden_layers = [hidden_width] * n_hidden
 
         lay_shapeL = []
         next_in = observation_width

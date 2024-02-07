@@ -22,10 +22,7 @@ class ACActor(PGActor):
             if k in kwargs:
                 c_kwargs[k] = kwargs[k]
 
-        PGActor.__init__(
-            self,
-            name=           name,
-            **kwargs)
+        PGActor.__init__(self, name=name, **kwargs)
 
         self.critic = critic_class(
             observation_width=  self._observation_vector(self.envy.get_observation()).shape[-1],
@@ -78,28 +75,11 @@ class ACActor(PGActor):
     def _publish(
             self,
             batch: Dict[str,np.ndarray],
-            training_data: Dict[str,np.ndarray],
             metrics: Dict[str,Any],
-            inspect: bool,
     ) -> None:
 
         critic_metrics = {k: metrics[k] for k in metrics if k.startswith('critic')}
-        for k in critic_metrics: metrics.pop(k)
-        super()._publish(batch=batch, training_data=training_data, metrics=metrics, inspect=inspect)
+        for k in critic_metrics:
+            metrics.pop(k)
+        super()._publish(batch=batch, metrics=metrics)
         self.critic.publish(critic_metrics)
-
-        if inspect:
-            """
-            print(f'\nBatch size: {len(batch)}')
-            print(f'observations: {observations.shape}, {observations[0]}')
-            print(f'actions: {actions.shape}, {actions[0]}')
-            print(f'rewards {rewards.shape}, {rewards[0]}')
-            print(f'next_observations {next_observations.shape}, {next_observations[0]}')
-            print(f'terminals {terminals.shape}, {terminals[0]}')
-            print(f'next_actions_probs {next_actions_probs.shape}, {next_actions_probs[0]}')
-            print(f'qvss {qvss.shape}, {qvss[0]}')
-            print(f'qv_actions {qv_actions.shape}, {qv_actions[0]}')
-            print(f'actions_OH {actions_OH.shape}, {actions_OH[0]}')
-            print(f'next_observations_qvs {next_observations_qvs.shape}, {next_observations_qvs[0]}')
-            """
-            pass
