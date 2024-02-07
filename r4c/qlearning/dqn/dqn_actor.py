@@ -10,8 +10,8 @@ from r4c.qlearning.ql_actor import QLearningActor
 from r4c.qlearning.dqn.dqn_actor_module import DQNModel
 
 
-# DQN (NN based) QLearningActor
 class DQNActor(QLearningActor, ABC):
+    """ DQN (NN based) QLearningActor """
 
     def __init__(
             self,
@@ -37,33 +37,28 @@ class DQNActor(QLearningActor, ABC):
             intervals=  (10, 50, 100),
             tbwr=       self._tbwr) if self._tbwr else None
 
-    # returns QVs for a single observation
     def _get_QVs(self, observation:np.ndarray) -> np.ndarray:
+        """ returns QVs for a single observation """
         return self.model(observations=observation)['qvs'].detach().cpu().numpy()
 
-    # single call with a batch of observations
     def get_QVs_batch(self, observations:np.ndarray) -> np.ndarray:
+        """ single call with a batch of observations """
         return self._get_QVs(observation=observations)
 
-    # not used by DQNActor
     def _upd_QV(
             self,
             observation: np.ndarray,
             action: int,
             new_qv: float) -> float:
-        raise R4Cexception('not implemented, should not be used since DQNActor only updates with a batch')
+        raise R4Cexception('not implemented, is not used since DQNActor updates with a batch only')
 
-    # updates NN
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
         return self.model.backward(**training_data)
 
-    # publishes
     def _publish(
             self,
             batch: Dict[str,np.ndarray],
-            training_data: Dict[str,np.ndarray],
             metrics: Dict[str,Any],
-            inspect: bool,
     ) -> None:
         if self._tbwr:
             for k,v in metrics.items():

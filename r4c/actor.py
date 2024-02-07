@@ -371,19 +371,26 @@ class TrainableActor(Actor, ABC):
         return nfo
 
 
-class ProbTRActor(TrainableActor, ABC):
-    """ Probabilistic TrainableActor for FiniteActionsRLEnvy """
+class FiniTRActor(TrainableActor, ABC):
+    """ TrainableActor for FiniteActionsRLEnvy """
 
-    def __init__(
-            self,
-            envy: FiniteActionsRLEnvy,
-            sample_PL: float=   0.0,    # PL sampling probability
-            sample_TR: float=   0.0,    # TR sampling probability
-            **kwargs):
-
+    def __init__(self, envy:FiniteActionsRLEnvy, **kwargs):
         TrainableActor.__init__(self, envy=envy, **kwargs)
         self.envy = envy  # to update the type (for pycharm)
 
+    def _get_random_action(self) -> NUM:
+        return int(np.random.choice(self.envy.num_actions()))
+
+
+class ProbTRActor(FiniTRActor, ABC):
+    """ Probabilistic FiniTRActor """
+
+    def __init__(
+            self,
+            sample_PL: float=   0.0,    # PL sampling probability
+            sample_TR: float=   0.0,    # TR sampling probability
+            **kwargs):
+        FiniTRActor.__init__(self, **kwargs)
         self.sample_PL = sample_PL
         self.sample_TR = sample_TR
 
@@ -391,9 +398,6 @@ class ProbTRActor(TrainableActor, ABC):
     def _get_policy_probs(self, observation:np.ndarray) -> np.ndarray:
         """ prepares policy probs """
         pass
-
-    def _get_random_action(self) -> NUM:
-        return int(np.random.choice(self.envy.num_actions()))
 
     def _get_action(self, observation:np.ndarray) -> NUM:
         sample =        (self._is_training and np.random.rand() < self.sample_TR
