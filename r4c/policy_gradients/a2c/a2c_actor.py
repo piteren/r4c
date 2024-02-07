@@ -1,5 +1,4 @@
 import numpy as np
-from pypaq.lipytools.plots import two_dim_multi
 from torchness.motorch import Module
 from typing import Optional, Dict, Any
 
@@ -24,22 +23,8 @@ class A2CActor(PGActor):
     def _publish(
             self,
             batch: Dict[str,np.ndarray],
-            training_data: Dict[str,np.ndarray],
             metrics: Dict[str,Any],
-            inspect: bool,
     ) -> None:
-
-        value = metrics.pop('value')
-        advantage = metrics.pop('advantage')
-
-        super()._publish(batch=batch, training_data=training_data, metrics=metrics, inspect=inspect)
-
-        if inspect:
-            ins_vals = {
-                'dreturns':     batch['dreturns'],
-                'value':        value.detach().cpu().numpy(),
-                'advantage':    advantage.detach().cpu().numpy()}
-            two_dim_multi(
-                ys=         list(ins_vals.values()),
-                names=      list(ins_vals.keys()),
-                legend_loc= 'lower left')
+        metrics.pop('value')
+        metrics.pop('advantage')
+        super()._publish(batch=batch, metrics=metrics)
