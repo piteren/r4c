@@ -125,7 +125,7 @@ class TrainableActor(Actor, ABC):
     ]:
         """ single  move of Actor on Envy (observation > action > reward) """
 
-        # eventually (safety) reset Envy
+        # eventually (safety) reset Envy in case it reached terminal state and has not been reset by the user
         if self.envy.is_terminal():
             self.envy.reset()
 
@@ -147,7 +147,6 @@ class TrainableActor(Actor, ABC):
     def run_play(
             self,
             steps: Optional[int]=   None,
-            reset: bool=            True,
             break_terminal: bool=   True,
             picture: bool=          False,
     ) -> Tuple[
@@ -165,9 +164,6 @@ class TrainableActor(Actor, ABC):
 
         if steps is None:
             raise R4Cexception('Actor cannot play on Envy where max_steps is None and given steps is None')
-
-        if reset:
-            self.envy.reset()
 
         observations = []
         actions = []
@@ -240,7 +236,6 @@ class TrainableActor(Actor, ABC):
 
             observations, actions, rewards, next_observations, terminals, wons = self.run_play(
                 steps=          self.batch_size,
-                reset=          False,
                 break_terminal= False)
 
             n_won += sum(wons)
@@ -279,9 +274,9 @@ class TrainableActor(Actor, ABC):
                 self._is_training = False
 
                 # single episode
+                self.envy.reset()
                 _, actions, rewards, _, _, wons = self.run_play(
                     steps=          test_max_steps,
-                    reset=          True,
                     break_terminal= True,
                     picture=        picture)
                 rewards_nfo = f'{sum(rewards):.1f}'
@@ -306,7 +301,8 @@ class TrainableActor(Actor, ABC):
 
             batch_ix += 1
 
-            if break_ntests is not None and succeeded_row_curr == break_ntests: break
+            if break_ntests is not None and succeeded_row_curr == break_ntests:
+                break
 
         self._is_training = False
         self._rlog.info(f'### Training finished, time taken: {time.time() - stime:.2f}sec')
@@ -346,9 +342,9 @@ class TrainableActor(Actor, ABC):
         sum_rewards = 0
         sum_actions = 0
         for e in range(n_episodes):
+            self.envy.reset()
             observations, _, rewards, _, _, wons = self.run_play(
                 steps=          max_steps,
-                reset=          True,
                 break_terminal= True)
             n_won += sum(wons)
             sum_rewards += sum(rewards)

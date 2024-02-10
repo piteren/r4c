@@ -56,7 +56,7 @@ class QLearningActor(FiniTRActor, ABC):
             terminals=  batch['terminals'])
 
         new_qv = [
-            r + self.gamma * max(no_qvs)
+            r + self.gamma * max(no_qvs) # Bellman equation
             for r, no_qvs in zip(batch['rewards'], next_observations_qvs)]
 
         return {
