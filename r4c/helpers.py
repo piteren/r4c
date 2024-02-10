@@ -20,67 +20,67 @@ def zscore_norm(x:NPL) -> np.ndarray:
     return (x - np.mean(x)) / (np.std(x) + 0.00000001)
 
 
-def da_returns(rewards:List[float], discount:float) -> List[float]:
-    """ prepares list of returns <- discounted accumulated rewards """
-    dar = np.zeros_like(rewards, dtype=float)
+def da_return(reward:List[float], discount:float) -> List[float]:
+    """ prepares list of return <- discounted accumulated reward """
+    dar = np.zeros_like(reward, dtype=float)
     s = 0.0
-    for i in reversed(range(len(rewards))):
-        s = s * discount + rewards[i]
+    for i in reversed(range(len(reward))):
+        s = s * discount + reward[i]
         dar[i] = s
     return list(dar)
 
 
-def update_terminal_QVs(qvs:np.ndarray, terminals:np.ndarray) -> None:
+def update_terminal_QVs(qvs:np.ndarray, terminal:np.ndarray) -> None:
     """ sets terminal states of QVs to zeroes (in place) """
     qvs_terminal = np.zeros_like(qvs[0])
-    for ix, t in enumerate(terminals):
+    for ix, t in enumerate(terminal):
         if t: qvs[ix] = qvs_terminal
 
 
-def split_rewards(rewards, terminals) -> List[List[float]]:
-    """ splits rewards into episode rewards """
+def split_reward(reward, terminal) -> List[List[float]]:
+    """ splits reward into episode reward """
 
-    if len(rewards) != len(terminals):
-        raise R4Cexception('len(rewards) should be equal to len(terminals)')
+    if len(reward) != len(terminal):
+        raise R4Cexception('len(reward) should be equal to len(terminal)')
 
-    episode_rewards = []
+    episode_reward = []
     cep = []
-    for r, t in zip(rewards, terminals):
+    for r, t in zip(reward, terminal):
         cep.append(r)
         if t:
-            episode_rewards.append(cep)
+            episode_reward.append(cep)
             cep = []
-    if cep: episode_rewards.append(cep)
-    return episode_rewards
+    if cep: episode_reward.append(cep)
+    return episode_reward
 
 
-def plot_obs_act(observations:NPL, actions:NPL):
-    """ plots batch of observations and actions """
+def plot_obs_act(observation:NPL, action:NPL):
+    """ plots batch of observation and action """
 
-    if type(observations) is not np.ndarray:
-        observations = np.asarray(observations)
+    if type(observation) is not np.ndarray:
+        observation = np.asarray(observation)
 
-    oL = np.split(observations, observations.shape[-1], axis=-1)
-    data = oL + [actions]
+    oL = np.split(observation, observation.shape[-1], axis=-1)
+    data = oL + [action]
     two_dim_multi(
         ys=     data,
-        names=  [f'obs_{ix}' for ix in range(len(oL))] + ['actions'])
+        names=  [f'obs_{ix}' for ix in range(len(oL))] + ['action'])
 
 
-def plot_rewards(
-        rewards,
-        terminals: Optional=    None,
+def plot_reward(
+        reward,
+        terminal: Optional=    None,
         discount: float=        0.9,
 ):
-    """ plots batch of rewards and some variants """
+    """ plots batch of reward and some variants """
 
-    ys = [rewards]
-    names = ['rewards']
+    ys = [reward]
+    names = ['reward']
 
-    if terminals is not None:
+    if terminal is not None:
         da_ret = []
-        for rs in split_rewards(rewards, terminals):
-            da_ret += da_returns(rewards=rs, discount=discount)
+        for rs in split_reward(reward, terminal):
+            da_ret += da_return(reward=rs, discount=discount)
         da_ret_znorm = zscore_norm(da_ret)
 
         ys += [da_ret, da_ret_znorm]

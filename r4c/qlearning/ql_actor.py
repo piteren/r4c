@@ -22,9 +22,9 @@ class QLearningActor(FiniTRActor, ABC):
         """ returns QVs (QV for all actions) for given observation """
         pass
 
-    def get_QVs_batch(self, observations:np.ndarray) -> np.ndarray:
-        """ returns QVs (for all actions) for given observations batch, here baseline implementation """
-        return np.asarray([self._get_QVs(o) for o in observations])
+    def get_QVs_batch(self, observation:np.ndarray) -> np.ndarray:
+        """ returns QVs (for all actions) for given observation batch, here baseline implementation """
+        return np.asarray([self._get_QVs(o) for o in observation])
 
     def _get_action(
             self,
@@ -49,25 +49,25 @@ class QLearningActor(FiniTRActor, ABC):
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
         """ extracts from a batch + adds new QV from Bellman Equation """
 
-        next_observations_qvs = self.get_QVs_batch(batch['next_observations'])
+        next_observation_qvs = self.get_QVs_batch(batch['next_observation'])
 
         update_terminal_QVs(
-            qvs=        next_observations_qvs,
-            terminals=  batch['terminals'])
+            qvs=        next_observation_qvs,
+            terminal=   batch['terminal'])
 
         new_qv = [
             r + self.gamma * max(no_qvs) # Bellman equation
-            for r, no_qvs in zip(batch['rewards'], next_observations_qvs)]
+            for r, no_qvs in zip(batch['reward'], next_observation_qvs)]
 
         return {
-            'observations': batch['observations'],
-            'actions':      batch['actions'],
+            'observation':  batch['observation'],
+            'action':       batch['action'],
             'new_qv':       np.asarray(new_qv)}
 
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
         """ updates QV """
         loss = 0.0
-        for obs, act, nqv in zip(training_data['observations'], training_data['actions'], training_data['new_qv']):
+        for obs, act, nqv in zip(training_data['observation'], training_data['action'], training_data['new_qv']):
             loss += self._upd_QV(
                 observation=    obs,
                 action=         act,

@@ -39,31 +39,31 @@ class PPOActor(PGActor):
         """ prepares actor and critic data """
 
         training_data = {
-            'observations': batch['observations'],
-            'actions':      batch['actions'],
-            'rewards':      batch['rewards']}
+            'observation': batch['observation'],
+            'action':      batch['action'],
+            'reward':      batch['reward']}
 
         # get QV of action
-        qvs = self.critic.get_qvs(batch['observations']) # QVs of current observations
-        training_data['dreturns'] = qvs[range(len(batch['actions'])), batch['actions']] # get QV of selected actions
+        qvs = self.critic.get_qvs(batch['observation']) # QVs of current observation
+        training_data['dreturn'] = qvs[range(len(batch['action'])), batch['action']] # get QV of selected action
 
-        # get QVs of next observations, those come without gradients, which is ok - no target backpropagation
-        next_observations_qvs = self.critic.get_qvs(batch['next_observations'])
+        # get QVs of next observation, those come without gradients, which is ok - no target backpropagation
+        next_observation_qvs = self.critic.get_qvs(batch['next_observation'])
         update_terminal_QVs(
-            qvs=        next_observations_qvs,
-            terminals=  batch['terminals'])
-        training_data['next_observations_qvs'] = next_observations_qvs
-        training_data['next_actions_probs'] = self._get_policy_probs(batch['next_observations'])  # get next_observations actions_probs (with Actor policy)
+            qvs=        next_observation_qvs,
+            terminal=  batch['terminal'])
+        training_data['next_observation_qvs'] = next_observation_qvs
+        training_data['next_action_probs'] = self._get_policy_probs(batch['next_observation'])  # get next_observation action_probs (with Actor policy)
 
         return training_data
 
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
         """ updates both NNs (actor + critic) """
 
-        actor_training_data = {k: training_data[k] for k in ['observations','actions','dreturns']}
+        actor_training_data = {k: training_data[k] for k in ['observation','actions','dreturn']}
         actor_metrics = super()._update(training_data=actor_training_data)
 
-        critic_training_data = {k: training_data[k] for k in ['observations','actions','next_observations_qvs','next_actions_probs','rewards']}
+        critic_training_data = {k: training_data[k] for k in ['observation','actions','next_observation_qvs','next_actions_probs','reward']}
         critic_metrics = self.critic.update(training_data=critic_training_data)
 
         # merge metrics

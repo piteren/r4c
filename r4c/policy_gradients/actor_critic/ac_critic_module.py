@@ -49,9 +49,9 @@ class ACCriticModule(Module):
             out_features=   num_actions,
             activation=     None)
 
-    def forward(self, observations:TNS) -> DTNS:
+    def forward(self, observation:TNS) -> DTNS:
 
-        out = self.ln(observations) if self.lay_norm else observations
+        out = self.ln(observation) if self.lay_norm else observation
 
         zsL = []
         for lin,ln in zip(self.linL,self.lnL):
@@ -67,18 +67,18 @@ class ACCriticModule(Module):
 
     def loss(
             self,
-            observations: TNS,
-            actions_taken: TNS,
-            next_observations_qvs: TNS,
-            next_actions_probs: TNS,
-            rewards: TNS
+            observation: TNS,
+            action_taken: TNS,
+            next_observation_qvs: TNS,
+            next_action_probs: TNS,
+            reward: TNS
     ) -> DTNS:
 
-        out = self(observations)
+        out = self(observation)
 
-        next_state_V = torch.sum(next_observations_qvs * next_actions_probs, dim=-1)
-        target_QV = rewards + self.gamma * next_state_V
-        qv = out['qvs'][range(len(actions_taken)),actions_taken]
+        next_state_V = torch.sum(next_observation_qvs * next_action_probs, dim=-1)
+        target_QV = reward + self.gamma * next_state_V
+        qv = out['qvs'][range(len(action_taken)),action_taken]
         diff = target_QV - qv
         loss = torch.mean(diff * diff) # MSE
 

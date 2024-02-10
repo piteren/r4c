@@ -39,13 +39,13 @@ class PGActor(ProbTRActor):
             tbwr=       self._tbwr) if self._tbwr else None
 
     def _get_policy_probs(self, observation:np.ndarray) -> np.ndarray:
-        return self.model(observations=observation)['probs'].detach().cpu().numpy()
+        return self.model(observation=observation)['probs'].detach().cpu().numpy()
 
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
         return self.model.backward(
-            observations=   training_data['observations'],
-            actions_taken=  training_data['actions'],
-            dreturns=       training_data['dreturns'])
+            observation=    training_data['observation'],
+            action_taken=   training_data['action'],
+            dreturn=        training_data['dreturn'])
 
     def _publish(
             self,
@@ -55,7 +55,7 @@ class PGActor(ProbTRActor):
 
         if self._tbwr:
 
-            self._tbwr.add_histogram(values=batch['observations'], tag='observations', step=self._upd_step)
+            self._tbwr.add_histogram(values=batch['observation'], tag='observation', step=self._upd_step)
 
             metrics.pop('logits')
 

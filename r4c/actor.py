@@ -9,7 +9,7 @@ from torchness.tbwr import TBwr
 from typing import Optional, Dict, Any, Tuple, List
 
 from r4c.envy import RLEnvy, FiniteActionsRLEnvy
-from r4c.helpers import R4Cexception, zscore_norm, da_returns, split_rewards, plot_obs_act, plot_rewards
+from r4c.helpers import R4Cexception, zscore_norm, da_return, split_reward, plot_obs_act, plot_reward
 from r4c.experience_memory import ExperienceMemory
 
 
@@ -52,8 +52,10 @@ class Actor(ABC):
             raise R4Cexception ('TrainableActor should implement get_observation_vec()')
 
     @abstractmethod
-    def _get_action(self, observation:np.ndarray) -> NUM:
-        """ returns Actor action from the Actor policy based on the observation """
+    def _get_action(self, observation:np.ndarray) -> Dict[str,Any]:
+        """ Actor gets observation and executes an action with the policy.
+        Action is based on observation.
+        Returns a dict with some data like action, probs, entropy.. """
         pass
 
     @abstractmethod
@@ -78,7 +80,7 @@ class TrainableActor(Actor, ABC):
             do_zscore: bool=            False,  # apply zscore norm to discounted returns
             batch_size: int=            64,
             mem_batches: Optional[int]= None,   # ExperienceMemory max size (in number of batches), for None is unlimited
-            sample_memory: bool=        False,  # sample batch from memory or get_all and reset
+            sample_memory: bool=        False,  # sample batch of single samples from memory or get_all and reset memory
             publish_TB: bool=           True,
             hpmser_mode: bool=          False,
             seed: int=                  123,
@@ -86,7 +88,9 @@ class TrainableActor(Actor, ABC):
 
         Actor.__init__(self, **kwargs)
 
-        self._is_training = False  # Actor manages its trainable state, by default is false, only run_train() changes
+        """ Actor manages its trainable state, by default is false, only run_train() changes.
+        Trainable state may be used for example by _get_action for exploration. """
+        self._is_training = False
 
         self.seed = seed
 
@@ -117,13 +121,8 @@ class TrainableActor(Actor, ABC):
         """ returns 100% random action """
         pass
 
-    def _move(self) -> Tuple[
-        np.ndarray, # observation
-        NUM,        # action
-        float,      # reward
-        np.ndarray, # next observation
-    ]:
-        """ single  move of Actor on Envy (observation > action > reward) """
+    def _move(self) -> Dict[str,Any]:
+        """ executes single move of Actor on Envy """
 
         # eventually (safety) reset Envy in case it reached terminal state and has not been reset by the user
         if self.envy.is_terminal():
@@ -132,32 +131,34 @@ class TrainableActor(Actor, ABC):
         observation = self.envy.get_observation()
         observation_vector = self._observation_vector(observation)
 
+        ad = self._get_action(observation=observation_vector)
         if self._is_training and np.random.rand() < self.exploration:
-            action = self._get_random_action()
-        else:
-            action = self._get_action(observation=observation_vector)
+            ad['action'] = self._get_random_action()
 
-        reward = self.envy.run(action)
+        reward = self.envy.run(ad['action'])
 
         next_observation = self.envy.get_observation()
         next_observation_vector = self._observation_vector(next_observation)
 
-        return observation_vector, action, reward, next_observation_vector
+        md = {
+            'observation':      observation_vector,
+            'reward':           reward,
+            'next_observation': next_observation_vector}
+        md.update(ad)
+
+        return md
 
     def run_play(
             self,
             steps: Optional[int]=   None,
             break_terminal: bool=   True,
             picture: bool=          False,
-    ) -> Tuple[
-        List[np.ndarray],   # observations
-        List[NUM],          # actions
-        List[float],        # rewards
-        List[np.ndarray],   # next observations
-        List[bool],         # terminals
-        List[bool],         # wons
-    ]:
-        """ Actor plays some steps on Envy and returns data """
+    ) -> Dict[str,List]:
+        """ Actor plays some steps on Envy and returns data
+        implementation below is a baseline and returns:
+        {   < any keys & data returned by _move() > +
+            'terminal':            List[bool],
+            'won'                  List[bool]} """
 
         if steps is None:
             steps = self.envy.max_steps
@@ -165,41 +166,35 @@ class TrainableActor(Actor, ABC):
         if steps is None:
             raise R4Cexception('Actor cannot play on Envy where max_steps is None and given steps is None')
 
-        observations = []
-        actions = []
-        rewards = []
-        next_observations = []
-        terminals = []
-        wons = []
+        ed = {k: [] for k in ['action','terminal','won']}
+        while len(ed['action']) < steps:
 
-        while len(actions) < steps:
+            md = self._move()
+            for k in md:
+                if k not in ed:
+                    ed[k] = []
+                ed[k].append(md[k])
 
-            observation, action, reward, next_observation = self._move()
-
-            observations.append(observation)
-            actions.append(action)
-            rewards.append(reward)
-            next_observations.append(next_observation)
-            terminals.append(self.envy.is_terminal())
-            wons.append(self.envy.has_won())
+            ed['terminal'].append(self.envy.is_terminal())
+            ed['won'].append(self.envy.has_won())
 
             if picture:
                 self.envy.render()
 
-            if terminals[-1] and break_terminal:
+            if ed['terminal'][-1] and break_terminal:
                 break
 
         if picture:
-            plot_obs_act(observations=observations, actions=actions)
-            kw = {'rewards': rewards}
+            plot_obs_act(observation=ed['observation'], action=ed['action'])
+            kw = {'reward': ed['reward']}
             if 'discount' in self.__dict__:
                 kw.update({
-                    'terminals':    terminals,
-                    'discount':     self.__dict__['discount'],
+                    'terminal': ed['terminal'],
+                    'discount': self.__dict__['discount'],
                 })
-            plot_rewards(**kw)
+            plot_reward(**kw)
 
-        return observations, actions, rewards, next_observations, terminals, wons
+        return ed
 
     def run_train(
             self,
@@ -213,14 +208,14 @@ class TrainableActor(Actor, ABC):
         """ RL training procedure, returns dict with some training stats """
 
         self.envy.reset()
-        self.memory.clear()
+        self.memory.reset()
 
         loss_mavg = MovAvg()
         lossL = []
 
         n_won = 0                   # number of wins while training
-        n_terminals = 0             # number of terminal states reached while training
-        last_terminals = 0          # previous number of terminal states
+        n_terminal = 0             # number of terminal states reached while training
+        last_terminal = 0          # previous number of terminal states
 
         succeeded_row_curr = 0      # current number of succeeded tests in a row
         succeeded_row_max = 0       # max number of succeeded tests in a row
@@ -234,22 +229,15 @@ class TrainableActor(Actor, ABC):
 
             ### play for a batch of data
 
-            observations, actions, rewards, next_observations, terminals, wons = self.run_play(
+            ed = self.run_play(
                 steps=          self.batch_size,
                 break_terminal= False)
 
-            n_won += sum(wons)
-            n_terminals += sum(terminals)
+            n_won += sum(ed['won'])
+            n_terminal += sum(ed['terminal'])
 
-            # store experience in memory
-            self.memory.add(
-                experience={
-                    'observations':         observations,
-                    'actions':              actions,
-                    'rewards':              rewards,
-                    'next_observations':    next_observations,
-                    'terminals':            terminals,
-                    'wons':                 wons})
+            # convert & save experience in memory
+            self.memory.add(experience={k: np.asarray(ed[k]) for k in ed})
 
             ### update
 
@@ -266,21 +254,21 @@ class TrainableActor(Actor, ABC):
 
             if test_freq and batch_ix % test_freq == 0:
 
-                term_nfo = f'{n_terminals}(+{n_terminals - last_terminals})'
+                term_nfo = f'{n_terminal}(+{n_terminal - last_terminal})'
                 loss_nfo = f'{loss_mavg():.4f}'
                 tr_nfo = f'# {batch_ix:4} term:{term_nfo:11}: loss:{loss_nfo:7}'
-                last_terminals = n_terminals
+                last_terminal = n_terminal
 
                 self._is_training = False
 
                 # single episode
                 self.envy.reset()
-                _, actions, rewards, _, _, wons = self.run_play(
+                ed = self.run_play(
                     steps=          test_max_steps,
                     break_terminal= True,
                     picture=        picture)
-                rewards_nfo = f'{sum(rewards):.1f}'
-                ts_one_nfo = f'1TS: {len(actions):4} actions, return {rewards_nfo:5} ({" won" if sum(wons) else "lost"})'
+                reward_nfo = f'{sum(ed["reward"]):.1f}'
+                ts_one_nfo = f'1TS: {len(ed["action"]):4} actions, return {reward_nfo:5} ({" won" if sum(ed["won"]) else "lost"})'
 
                 # few tests
                 if test_episodes:
@@ -308,28 +296,28 @@ class TrainableActor(Actor, ABC):
         self._rlog.info(f'### Training finished, time taken: {time.time() - stime:.2f}sec')
 
         return {
-            'n_actions':            (batch_ix-1)*self.batch_size,   # total number of training actions
+            'n_action':             (batch_ix-1)*self.batch_size,   # total number of training actions
             'lossL':                lossL,
-            'n_terminals':          n_terminals,
+            'n_terminal':           n_terminal,
             'n_won':                n_won,
             'n_updates_done':       batch_ix-1,
             'succeeded_row_max':    succeeded_row_max}
 
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
-        """ extracts from a batch + prepares dreturns """
+        """ extracts from a batch + prepares dreturn """
 
-        episode_rewards = split_rewards(batch['rewards'], batch['terminals'])
+        episode_reward = split_reward(batch['reward'], batch['terminal'])
 
-        dreturns = []
-        for rs in episode_rewards:
-            dreturns += da_returns(rewards=rs, discount=self.discount)
+        dreturn = []
+        for rs in episode_reward:
+            dreturn += da_return(reward=rs, discount=self.discount)
         if self.do_zscore:
-            dreturns = zscore_norm(dreturns)
+            dreturn = zscore_norm(dreturn)
 
         return {
-            'observations': batch['observations'],
-            'actions':      batch['actions'],
-            'dreturns':     np.asarray(dreturns)}
+            'observation': batch['observation'],
+            'action':      batch['action'],
+            'dreturn':     np.asarray(dreturn)}
 
     @abstractmethod
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
@@ -339,17 +327,17 @@ class TrainableActor(Actor, ABC):
     def test_on_episodes(self, n_episodes:int=10, max_steps:Optional[int]=None) -> Tuple[float, float, float]:
         """ plays n episodes, returns tuple with won_factor & avg_reward """
         n_won = 0
-        sum_rewards = 0
-        sum_actions = 0
+        sum_reward = 0
+        sum_action = 0
         for e in range(n_episodes):
             self.envy.reset()
-            observations, _, rewards, _, _, wons = self.run_play(
+            ed = self.run_play(
                 steps=          max_steps,
                 break_terminal= True)
-            n_won += sum(wons)
-            sum_rewards += sum(rewards)
-            sum_actions += len(observations)
-        return n_won/n_episodes, sum_rewards/n_episodes, sum_actions/n_episodes
+            n_won += sum(ed['won'])
+            sum_reward += sum(ed['reward'])
+            sum_action += len(ed['observation'])
+        return n_won/n_episodes, sum_reward/n_episodes, sum_action/n_episodes
 
     def _publish(
             self,
@@ -383,8 +371,8 @@ class ProbTRActor(FiniTRActor, ABC):
 
     def __init__(
             self,
-            sample_PL: float=   0.0,    # PL sampling probability
-            sample_TR: float=   0.0,    # TR sampling probability
+            sample_PL: float=   0.0, # PL sampling probability
+            sample_TR: float=   0.0, # TR sampling probability
             **kwargs):
         FiniTRActor.__init__(self, **kwargs)
         self.sample_PL = sample_PL
@@ -395,11 +383,11 @@ class ProbTRActor(FiniTRActor, ABC):
         """ prepares policy probs """
         pass
 
-    def _get_action(self, observation:np.ndarray) -> NUM:
+    def _get_action(self, observation:np.ndarray):
+        probs = self._get_policy_probs(observation)
         sample =        (self._is_training and np.random.rand() < self.sample_TR
                   or not self._is_training and np.random.rand() < self.sample_PL)
-        probs = self._get_policy_probs(observation)
-        if sample:
-            return int(np.random.choice(self.envy.num_actions(), p=probs))
-        else:
-            return int(np.argmax(probs))
+        action = int(np.random.choice(self.envy.num_actions(), p=probs)
+                     if sample else
+                     np.argmax(probs))
+        return {'probs':probs, 'action':action}

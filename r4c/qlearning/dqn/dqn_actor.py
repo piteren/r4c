@@ -39,11 +39,11 @@ class DQNActor(QLearningActor, ABC):
 
     def _get_QVs(self, observation:np.ndarray) -> np.ndarray:
         """ returns QVs for a single observation """
-        return self.model(observations=observation)['qvs'].detach().cpu().numpy()
+        return self.model(observation=observation)['qvs'].detach().cpu().numpy()
 
-    def get_QVs_batch(self, observations:np.ndarray) -> np.ndarray:
-        """ single call with a batch of observations """
-        return self._get_QVs(observation=observations)
+    def get_QVs_batch(self, observation:np.ndarray) -> np.ndarray:
+        """ single call with a batch of observation """
+        return self._get_QVs(observation=observation)
 
     def _upd_QV(
             self,

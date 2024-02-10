@@ -52,8 +52,8 @@ class DQNModel(Module):
         loss_class = torch.nn.HuberLoss if use_huber else torch.nn.MSELoss
         self.loss_fn = loss_class(reduction='none')
 
-    def forward(self, observations:TNS) -> DTNS:
-        out = self.ln(observations.to(torch.float32)) # + safety dtype convert
+    def forward(self, observation:TNS) -> DTNS:
+        out = self.ln(observation.to(torch.float32)) # + safety dtype convert
         for lin,ln in zip(self.linL,self.lnL):
             out = lin(out)
             out = ln(out)
@@ -61,12 +61,12 @@ class DQNModel(Module):
 
     def loss(
             self,
-            observations: TNS,
-            actions: TNS,
+            observation: TNS,
+            action: TNS,
             new_qv: TNS,
     ) -> DTNS:
-        out = self(observations)
-        qv_pred = out['qvs'][range(len(actions)),actions]
+        out = self(observation)
+        qv_pred = out['qvs'][range(len(action)),action]
         loss = self.loss_fn(qv_pred, new_qv)
         out['loss'] = torch.mean(loss)
         return out

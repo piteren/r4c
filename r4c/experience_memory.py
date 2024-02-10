@@ -1,7 +1,6 @@
 import numpy as np
-from pypaq.pytypes import NPL
 from pypaq.lipytools.pylogger import get_pylogger
-from typing import Optional, Dict, Union
+from typing import Optional, Dict
 
 
 class ExperienceMemory:
@@ -21,31 +20,21 @@ class ExperienceMemory:
         self.logger = logger
 
         self._mem: Dict[str,np.ndarray] = {}
-        self._init_mem()
         self.max_size = max_size
         np.random.seed(seed)
 
         self.logger.info(f'*** {self.__class__.__name__} *** initialized, size: {self.max_size}')
 
-    def _init_mem(self):
-        self._mem = {
-            'observations':         None, # np.ndarray of NUM (2 dim)
-            'actions':              None, # np.ndarray of NUM
-            'rewards':              None, # np.ndarray of floats
-            'next_observations':    None, # np.ndarray of NUM (2 dim)
-            'terminals':            None, # np.ndarray of bool
-            'wons':                 None} # np.ndarray of bool
-
-    def add(self, experience:Dict[str, Union[NPL]]):
-        """ adds given experience """
+    def add(self, experience:Dict[str,np.ndarray]):
+        """ adds given experience
+        it is up to Actor decision whether it is ok to add more experience to actual memory
+        probably usually Actor should add new experience to empty memory """
 
         # add or put
         for k in experience:
-            ex_np = np.asarray(experience[k])
-            if self._mem[k] is None:
-                self._mem[k] = ex_np
-            else:
-                self._mem[k] = np.concatenate([self._mem[k], ex_np])
+            ed = experience[k]
+            if k not in self._mem: self._mem[k] = ed
+            else:                  self._mem[k] = np.concatenate([self._mem[k], ed])
 
         # trim from the beginning, if needed
         if self.max_size and len(self) > self.max_size:
@@ -61,11 +50,21 @@ class ExperienceMemory:
         """ returns all memory data """
         mc = {k: np.copy(self._mem[k] if not reset else self._mem[k]) for k in self._mem}
         if reset:
-            self._init_mem()
+            self.reset()
         return mc
 
-    def clear(self):
-        self._init_mem()
+    def reset(self):
+        self._mem = {}
 
     def __len__(self):
-        return len(self._mem['observations']) if self._mem['observations'] is not None else 0
+        return len(self._mem['observation']) if self._mem['observation'] is not None else 0
+
+    def __str__(self):
+        s = f'{self.__class__.__name__}, size: {self.max_size}'
+        if self._mem:
+            keys = list(self._mem.keys())
+            size = len(self._mem[keys[0]])
+            s += f'\ngot ({len(keys)}) keys: {", ".join(keys)}'
+            s += f'\nactual size: {size}'
+            for k in keys:
+                s += f'\n> key: {k} --- {self._mem[k].shape} {self._mem[k].dtype}'

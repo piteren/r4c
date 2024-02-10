@@ -33,16 +33,16 @@ class ACCritic:
             tbwr=       self._tbwr) if self._tbwr else None
 
     def get_qvs(self, observation:np.ndarray) -> np.ndarray:
-        return self.model(observations=observation)['qvs'].detach().cpu().numpy()
+        return self.model(observation=observation)['qvs'].detach().cpu().numpy()
 
     def update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
         self._upd_step += 1
         return self.model.backward(
-            observations=           training_data['observations'],
-            actions_taken=          training_data['actions'],
-            next_observations_qvs=  training_data['next_observations_qvs'],
-            next_actions_probs=     training_data['next_actions_probs'],
-            rewards=                training_data['rewards'])
+            observation=            training_data['observation'],
+            action_taken=           training_data['action'],
+            next_observation_qvs=   training_data['next_observation_qvs'],
+            next_action_probs=      training_data['next_action_probs'],
+            reward=                 training_data['reward'])
 
     def publish(self, metrics:Dict[str,Any]):
 
