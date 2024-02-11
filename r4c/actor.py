@@ -52,7 +52,7 @@ class Actor(ABC):
             raise R4Cexception ('TrainableActor should implement get_observation_vec()')
 
     @abstractmethod
-    def _get_action(self, observation:np.ndarray) -> Dict[str,Any]:
+    def _get_action(self, observation:np.ndarray) -> Dict[str,NUM]:
         """ Actor gets observation and executes an action with the policy.
         Action is based on observation.
         Returns a dict with some data like action, probs, entropy.. """
@@ -121,7 +121,7 @@ class TrainableActor(Actor, ABC):
         """ returns 100% random action """
         pass
 
-    def _move(self) -> Dict[str,Any]:
+    def _move(self) -> Dict[str,NUM]:
         """ executes single move of Actor on Envy """
 
         # eventually (safety) reset Envy in case it reached terminal state and has not been reset by the user
@@ -153,7 +153,7 @@ class TrainableActor(Actor, ABC):
             steps: Optional[int]=   None,
             break_terminal: bool=   True,
             picture: bool=          False,
-    ) -> Dict[str,List]:
+    ) -> Dict[str,List[NUM]]:
         """ Actor plays some steps on Envy and returns data
         implementation below is a baseline and returns:
         {   < any keys & data returned by _move() > +
@@ -379,15 +379,18 @@ class ProbTRActor(FiniTRActor, ABC):
         self.sample_TR = sample_TR
 
     @abstractmethod
-    def _get_policy_probs(self, observation:np.ndarray) -> np.ndarray:
-        """ prepares policy probs """
+    def _get_policy_probs(self, observation:np.ndarray) -> Dict[str,NUM]:
+        """ prepares policy probs,
+         returns dict with probs and eventually more data """
         pass
 
-    def _get_action(self, observation:np.ndarray):
-        probs = self._get_policy_probs(observation)
+    def _get_action(self, observation:np.ndarray) -> Dict[str,NUM]:
+        ppd = self._get_policy_probs(observation)
+        probs = ppd['probs']
         sample =        (self._is_training and np.random.rand() < self.sample_TR
                   or not self._is_training and np.random.rand() < self.sample_PL)
         action = int(np.random.choice(self.envy.num_actions(), p=probs)
                      if sample else
                      np.argmax(probs))
-        return {'probs':probs, 'action':action}
+        ppd['action'] = action
+        return ppd

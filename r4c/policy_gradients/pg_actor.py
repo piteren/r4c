@@ -1,6 +1,8 @@
 import numpy as np
+from pypaq.pytypes import NUM
 from pypaq.pms.base import POINT
 from pypaq.lipytools.pylogger import get_child
+import torch
 from torchness.motorch import MOTorch, Module
 from torchness.comoneural.zeroes_processor import ZeroesProcessor
 from torchness.comoneural.avg_probs import avg_mm_probs
@@ -38,8 +40,12 @@ class PGActor(ProbTRActor):
             intervals=  (10, 50, 100),
             tbwr=       self._tbwr) if self._tbwr else None
 
-    def _get_policy_probs(self, observation:np.ndarray) -> np.ndarray:
-        return self.model(observation=observation)['probs'].detach().cpu().numpy()
+    def _get_policy_probs(self, observation:np.ndarray) -> Dict[str,NUM]:
+        out = self.model(observation=observation)
+        return {
+            'logits':   out['logits'].detach().cpu().numpy(),
+            'probs':    out['probs'].detach().cpu().numpy(),
+            'entropy':  out['entropy'].detach().cpu().numpy()}
 
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
         return self.model.backward(
