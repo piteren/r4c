@@ -53,7 +53,7 @@ class ACActor(PGActor):
             qvs=        next_observation_qvs,
             terminal=   batch['terminal'])
         training_data['next_observation_qvs'] = next_observation_qvs
-        training_data['next_action_probs'] = self._get_policy_probs(batch['next_observation'])  # get next_observation action_probs (with Actor policy)
+        training_data['next_action_probs'] = self._get_probs(batch['next_observation'])  # get next_observation action_probs (with Actor policy)
 
         return training_data
 

@@ -6,7 +6,7 @@ from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.moving_average import MovAvg
 import time
 from torchness.tbwr import TBwr
-from typing import Optional, Dict, Any, Tuple, List
+from typing import Optional, Dict, Any, Tuple
 
 from r4c.envy import RLEnvy, FiniteActionsRLEnvy
 from r4c.helpers import R4Cexception, zscore_norm, da_return, split_reward, plot_obs_act, plot_reward
@@ -53,9 +53,9 @@ class Actor(ABC):
 
     @abstractmethod
     def _get_action(self, observation:np.ndarray) -> Dict[str,NUM]:
-        """ Actor gets observation and executes an action with the policy.
-        Action is based on observation.
-        Returns a dict with some data like action, probs, entropy.. """
+        """ Actor (agent) gets observation and executes an action with the policy,
+        action is based on observation,
+        returns a dict with some data like probs, action, logprob, value.. """
         pass
 
     @abstractmethod
@@ -153,7 +153,7 @@ class TrainableActor(Actor, ABC):
             steps: Optional[int]=   None,
             break_terminal: bool=   True,
             picture: bool=          False,
-    ) -> Dict[str,List[NUM]]:
+    ) -> Dict[str,np.ndarray]:
         """ Actor plays some steps on Envy and returns data
         implementation below is a baseline and returns:
         {   < any keys & data returned by _move() > +
@@ -183,6 +183,8 @@ class TrainableActor(Actor, ABC):
 
             if ed['terminal'][-1] and break_terminal:
                 break
+
+        ed = {k: np.asarray(ed[k]) for k in ed}
 
         if picture:
             plot_obs_act(observation=ed['observation'], action=ed['action'])
@@ -236,8 +238,7 @@ class TrainableActor(Actor, ABC):
             n_won += sum(ed['won'])
             n_terminal += sum(ed['terminal'])
 
-            # convert & save experience in memory
-            self.memory.add(experience={k: np.asarray(ed[k]) for k in ed})
+            self.memory.add(experience=ed)
 
             ### update
 
@@ -379,18 +380,13 @@ class ProbTRActor(FiniTRActor, ABC):
         self.sample_TR = sample_TR
 
     @abstractmethod
-    def _get_policy_probs(self, observation:np.ndarray) -> Dict[str,NUM]:
-        """ prepares policy probs,
-         returns dict with probs and eventually more data """
+    def _get_probs(self, observation:np.ndarray) -> np.ndarray:
+        """ runs agent policy to return policy probs """
         pass
 
     def _get_action(self, observation:np.ndarray) -> Dict[str,NUM]:
-        ppd = self._get_policy_probs(observation)
-        probs = ppd['probs']
+        probs = self._get_probs(observation)
         sample =        (self._is_training and np.random.rand() < self.sample_TR
                   or not self._is_training and np.random.rand() < self.sample_PL)
-        action = int(np.random.choice(self.envy.num_actions(), p=probs)
-                     if sample else
-                     np.argmax(probs))
-        ppd['action'] = action
-        return ppd
+        action = np.random.choice(self.envy.num_actions(), p=probs) if sample else np.argmax(probs)
+        return {'probs':probs, 'action':action}

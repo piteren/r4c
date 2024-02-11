@@ -2,6 +2,8 @@ import numpy as np
 from pypaq.lipytools.pylogger import get_pylogger
 from typing import Optional, Dict
 
+from r4c.helpers import R4Cexception
+
 
 class ExperienceMemory:
     """ Experience Memory (for TrainableActor)
@@ -43,6 +45,8 @@ class ExperienceMemory:
 
     def get_sample(self, n:int) -> Dict[str,np.ndarray]:
         """ returns random sample of non-duplicates from memory """
+        if n > len(self):
+            raise R4Cexception(f'cannot sample {n} samples from memory of size {len(self)}')
         ixs = np.random.choice(len(self), n, replace=False)
         return {k: self._mem[k][ixs] for k in self._mem}
 
