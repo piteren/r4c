@@ -1,36 +1,38 @@
 import numpy as np
+from pypaq.pms.base import POINT
+from pypaq.lipytools.pylogger import get_child
 from torchness.motorch import Module, MOTorch
 from torchness.comoneural.zeroes_processor import ZeroesProcessor
 from typing import Optional, Dict, Any
 
+from r4c.critic import TrainableCritic
 from r4c.policy_gradients.ppo.ppo_critic_module import PPOCriticModule
 
 
-class PPOCritic:
+class PPOCritic(TrainableCritic):
 
     def __init__(
             self,
-            observation_width: int,
-            num_actions: int,
-            name: str=                              'PPOCritic',
             module_type: Optional[type(Module)]=    PPOCriticModule,
-            tbwr: Optional=                         None,
+            motorch_point: Optional[POINT]=         None,
             **kwargs):
+
+        TrainableCritic.__init__(self, **kwargs)
 
         self.model = MOTorch(
             module_type=        module_type,
-            name=               name,
-            observation_width=  observation_width,
-            num_actions=        num_actions,
-            **kwargs)
+            name=               self.name,
+            observation_width=  self.actor.observation_width,
+            seed=               self.actor.seed,
+            logger=             get_child(self.logger),
+            **(motorch_point or {}))
 
-        self._tbwr = tbwr
         self._upd_step = 0
 
         self.zepro = ZeroesProcessor(
             intervals=  (10, 50, 100),
             tag_pfx=    'critic_nane',
-            tbwr=       self._tbwr) if self._tbwr else None
+            tbwr=       self.actor.tbwr) if self.actor.tbwr else None
 
     def get_value(self, observation:np.ndarray) -> np.ndarray:
         return self.model(observation=observation)['value'].detach().cpu().numpy()
@@ -46,11 +48,11 @@ class PPOCritic:
 
     def publish(self, metrics:Dict[str,Any]):
 
-        if self._tbwr:
+        if self.actor.tbwr:
 
             zeroes = metrics.pop('critic_zeroes')
             self.zepro.process(zeroes=zeroes, step=self._upd_step)
 
             metrics.pop('critic_value')
             for k, v in metrics.items():
-                self._tbwr.add(value=v, tag=f'critic/{k[7:]}', step=self._upd_step)
+                self.actor.tbwr.add(value=v, tag=f'critic/{k[7:]}', step=self._upd_step)

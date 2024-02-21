@@ -27,21 +27,19 @@ class ACActor(PGActor):
         self.critic = critic_class(
             observation_width=  self._observation_vector(self.envy.get_observation()).shape[-1],
             num_actions=        self.envy.num_actions(),
-            tbwr=               self._tbwr,
+            tbwr=               self.tbwr,
             hpmser_mode=        self.hpmser_mode,
             seed=               kwargs['seed'],
             **c_kwargs)
 
-        self._rlog.info('*** ACActor *** initialized')
-        self._rlog.info(f'> critic: {critic_class.__name__}')
+        self.logger.info('*** ACActor *** initialized')
+        self.logger.info(f'> critic: {critic_class.__name__}')
 
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
         """ prepares actor and critic data """
 
-        training_data = {
-            'observation': batch['observation'],
-            'action':      batch['action'],
-            'reward':      batch['reward']}
+        dk = ['observation','action','reward']
+        training_data = {k: batch[k] for k in dk}
 
         # get QV of action
         qvs = self.critic.get_qvs(batch['observation']) # QVs of current observation
@@ -63,7 +61,7 @@ class ACActor(PGActor):
         actor_training_data = {k: training_data[k] for k in ['observation','action','dreturn']}
         actor_metrics = super()._update(training_data=actor_training_data)
 
-        critic_training_data = {k: training_data[k] for k in ['observation','actions','next_observation_qvs','next_actions_probs','reward']}
+        critic_training_data = {k: training_data[k] for k in ['observation','action','next_observation_qvs','next_action_probs','reward']}
         critic_metrics = self.critic.update(training_data=critic_training_data)
 
         # merge metrics

@@ -24,13 +24,13 @@ class ACCritic:
             num_actions=        num_actions,
             **kwargs)
 
-        self._tbwr = tbwr
+        self.tbwr = tbwr
         self._upd_step = 0
 
         self.zepro = ZeroesProcessor(
             intervals=  (10, 50, 100),
             tag_pfx=    'critic_nane',
-            tbwr=       self._tbwr) if self._tbwr else None
+            tbwr=       self.tbwr) if self.tbwr else None
 
     def get_qvs(self, observation:np.ndarray) -> np.ndarray:
         return self.model(observation=observation)['qvs'].detach().cpu().numpy()
@@ -46,11 +46,11 @@ class ACCritic:
 
     def publish(self, metrics:Dict[str,Any]):
 
-        if self._tbwr:
+        if self.tbwr:
 
             zeroes = metrics.pop('critic_zeroes')
             self.zepro.process(zeroes=zeroes, step=self._upd_step)
 
             metrics.pop('critic_qvs')
             for k, v in metrics.items():
-                self._tbwr.add(value=v, tag=f'critic/{k[7:]}', step=self._upd_step)
+                self.tbwr.add(value=v, tag=f'critic/{k[7:]}', step=self._upd_step)

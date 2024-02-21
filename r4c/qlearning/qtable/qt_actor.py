@@ -63,8 +63,8 @@ class QTableActor(QLearningActor):
         QLearningActor.__init__(self, name=name, **kwargs)
         self.update_rate = update_rate
         self.__qtable = QTable(self.envy.num_actions())
-        self._rlog.info('*** QTableActor *** initialized')
-        self._rlog.info(f'> update_rate: {self.update_rate}')
+        self.logger.info('*** QTableActor *** initialized')
+        self.logger.info(f'> update_rate: {self.update_rate}')
 
     # returns QVs for given observation
     def _get_QVs(self, observation:np.ndarray) -> np.ndarray:

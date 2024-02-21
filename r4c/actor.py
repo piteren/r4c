@@ -28,7 +28,9 @@ class Actor(ABC):
 
         if name is None:
             name = f'{self.__class__.__name__}'
-        if add_stamp: name += f'_{stamp()}'
+        self.add_stamp = add_stamp
+        if self.add_stamp:
+            name += f'_{stamp()}'
         self.name = name
 
         self.save_topdir = save_topdir
@@ -38,11 +40,10 @@ class Actor(ABC):
             logger = get_pylogger(
                 folder= self.save_dir,
                 level=  loglevel)
-        self._rlog = logger
-        self._rlog.info(f'*** {self.__class__.__name__} (Actor) : {self.name} *** initializes..')
+        self.logger = logger
+        self.logger.info(f'*** {self.__class__.__name__} (Actor) : {self.name} *** initializes..')
 
         self.envy = envy
-        self._rlog.info(f'> Envy: {self.envy.__class__.__name__}')
 
     def _observation_vector(self, observation:object) -> np.ndarray:
         """ prepares vector (np.ndarray) from observation, first tries to get from RLEnvy """
@@ -64,9 +65,13 @@ class Actor(ABC):
     @abstractmethod
     def load(self): pass
 
+    @property
+    def observation_width(self) -> int:
+        return self._observation_vector(self.envy.get_observation()).shape[-1]
+
     def __str__(self):
         nfo =  f'{self.__class__.__name__} (Actor) : {self.name}\n'
-        nfo += f'> observation width: {self._observation_vector(self.envy.get_observation()).shape[-1]}'
+        nfo += f'> observation width: {self.observation_width}'
         return nfo
 
 
@@ -98,7 +103,7 @@ class TrainableActor(Actor, ABC):
         self.memory = ExperienceMemory(
             max_size=   mem_max_size,
             seed=       self.seed,
-            logger=     get_child(self._rlog))
+            logger=     get_child(self.logger))
         self._sample_memory = sample_memory
 
         self.discount = discount
@@ -111,7 +116,7 @@ class TrainableActor(Actor, ABC):
         if self.hpmser_mode:
             publish_TB = False
 
-        self._tbwr = TBwr(logdir=self.save_dir) if publish_TB else None
+        self.tbwr = TBwr(logdir=self.save_dir) if publish_TB else None
         self._upd_step = 0  # global update step
 
         np.random.seed(self.seed)
@@ -215,14 +220,14 @@ class TrainableActor(Actor, ABC):
         loss_mavg = MovAvg()
         lossL = []
 
-        n_won = 0                   # number of wins while training
-        n_terminal = 0             # number of terminal states reached while training
-        last_terminal = 0          # previous number of terminal states
+        n_won = 0               # number of wins while training
+        n_terminal = 0          # number of terminal states reached while training
+        last_terminal = 0       # previous number of terminal states
 
-        succeeded_row_curr = 0      # current number of succeeded tests in a row
-        succeeded_row_max = 0       # max number of succeeded tests in a row
+        succeeded_row_curr = 0  # current number of succeeded tests in a row
+        succeeded_row_max = 0   # max number of succeeded tests in a row
 
-        batch_ix = 1                # index, starts from 1
+        batch_ix = 1            # index, starts from 1
         stime = time.time()
 
         self._is_training = True
@@ -284,7 +289,7 @@ class TrainableActor(Actor, ABC):
                     else:
                         succeeded_row_curr = 0
 
-                    self._rlog.info(f'{tr_nfo} -- {ts_one_nfo} -- {ts_nfo}')
+                    self.logger.info(f'{tr_nfo} -- {ts_one_nfo} -- {ts_nfo}')
 
                 self._is_training = True
 
@@ -294,7 +299,7 @@ class TrainableActor(Actor, ABC):
                 break
 
         self._is_training = False
-        self._rlog.info(f'### Training finished, time taken: {time.time() - stime:.2f}sec')
+        self.logger.info(f'### Training finished, time taken: {time.time() - stime:.2f}sec')
 
         return {
             'n_action':             (batch_ix-1)*self.batch_size,   # total number of training actions
@@ -307,18 +312,18 @@ class TrainableActor(Actor, ABC):
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
         """ extracts from a batch + prepares dreturn """
 
-        episode_reward = split_reward(batch['reward'], batch['terminal'])
+        dk = ['observation', 'action']
+        training_data = {k: batch[k] for k in dk}
 
+        episode_reward = split_reward(batch['reward'], batch['terminal'])
         dreturn = []
         for rs in episode_reward:
             dreturn += da_return(reward=rs, discount=self.discount)
         if self.do_zscore:
             dreturn = zscore_norm(dreturn)
+        training_data['dreturn'] = np.asarray(dreturn)
 
-        return {
-            'observation': batch['observation'],
-            'action':      batch['action'],
-            'dreturn':     np.asarray(dreturn)}
+        return training_data
 
     @abstractmethod
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
@@ -346,8 +351,8 @@ class TrainableActor(Actor, ABC):
             metrics: Dict[str,Any],
     ) -> None:
         """ publishes to TB """
-        if self._tbwr:
-            self._tbwr.add(value=metrics['loss'], tag=f'actor/loss', step=self._upd_step)
+        if self.tbwr:
+            self.tbwr.add(value=metrics['loss'], tag=f'actor/loss', step=self._upd_step)
 
     def __str__(self) -> str:
         nfo =  f'{super().__str__()}\n'

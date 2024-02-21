@@ -22,21 +22,19 @@ class PGActor(ProbTRActor):
 
         ProbTRActor.__init__(self, **kwargs)
 
-        motorch_point = motorch_point or {}
-        motorch_point['num_actions'] = self.envy.num_actions()
-        motorch_point['observation_width'] = self._observation_vector(self.envy.get_observation()).shape[-1]
-
         self.model = MOTorch(
-            module_type=    module_type,
-            name=           self.name,
-            seed=           self.seed,
-            logger=         get_child(self._rlog),
-            hpmser_mode=    self.hpmser_mode,
-            **motorch_point)
+            module_type=        module_type,
+            name=               self.name,
+            num_actions=        self.envy.num_actions(),
+            observation_width=  self.observation_width,
+            seed=               self.seed,
+            logger=             get_child(self.logger),
+            hpmser_mode=        self.hpmser_mode,
+            **(motorch_point or {}))
 
         self._zepro = ZeroesProcessor(
             intervals=  (10, 50, 100),
-            tbwr=       self._tbwr) if self._tbwr else None
+            tbwr=       self.tbwr) if self.tbwr else None
 
     def _get_probs(self, observation:np.ndarray) -> np.ndarray:
         return self.model(observation=observation)['probs'].cpu().detach().numpy()
@@ -53,22 +51,22 @@ class PGActor(ProbTRActor):
             metrics: Dict[str,Any],
     ) -> None:
 
-        if self._tbwr:
+        if self.tbwr:
 
-            self._tbwr.add_histogram(values=batch['observation'], tag='observation', step=self._upd_step)
+            self.tbwr.add_histogram(values=batch['observation'], tag='observation', step=self._upd_step)
 
             metrics.pop('logits')
 
             probs = metrics.pop('probs').cpu().detach().numpy()
             pm = avg_mm_probs(probs)
             for k in pm:
-                self._tbwr.add(value=pm[k], tag=f'actor/{k}', step=self._upd_step)
+                self.tbwr.add(value=pm[k], tag=f'actor/{k}', step=self._upd_step)
 
             zeroes = metrics.pop('zeroes')
             self._zepro.process(zeroes=zeroes, step=self._upd_step)
 
             for k,v in metrics.items():
-                self._tbwr.add(value=v, tag=f'actor/{k}', step=self._upd_step)
+                self.tbwr.add(value=v, tag=f'actor/{k}', step=self._upd_step)
 
     def save(self):
         self.model.save()

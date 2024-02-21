@@ -29,13 +29,13 @@ class DQNActor(QLearningActor, ABC):
             module_type=    module_type,
             name=           self.name,
             seed=           self.seed,
-            logger=         self._rlog,
+            logger=         self.logger,
             hpmser_mode=    self.hpmser_mode,
             **motorch_point)
 
         self._zepro = ZeroesProcessor(
             intervals=  (10, 50, 100),
-            tbwr=       self._tbwr) if self._tbwr else None
+            tbwr=       self.tbwr) if self.tbwr else None
 
     def _get_QVs(self, observation:np.ndarray) -> np.ndarray:
         """ returns QVs for a single observation """
@@ -60,10 +60,10 @@ class DQNActor(QLearningActor, ABC):
             batch: Dict[str,np.ndarray],
             metrics: Dict[str,Any],
     ) -> None:
-        if self._tbwr:
+        if self.tbwr:
             for k,v in metrics.items():
                 if k != 'qvs':
-                    self._tbwr.add(value=v, tag=f'actor/{k}', step=self._upd_step)
+                    self.tbwr.add(value=v, tag=f'actor/{k}', step=self._upd_step)
 
     def save(self):
         self.model.save()

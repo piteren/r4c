@@ -18,9 +18,9 @@ class Envy(ABC):
             logger=     None,
             loglevel=   20,
     ):
-        self._rlog = logger or get_pylogger(level=loglevel)
+        self.logger = logger or get_pylogger(level=loglevel)
+        self.logger.info(f'*** {self.__class__.__name__} (Envy) *** initializes..')
         self.seed = seed
-        self._rlog.info(f'*** {self.__class__.__name__} (Envy) *** initialized')
 
     @abstractmethod
     def get_observation(self) -> object:
@@ -85,9 +85,6 @@ class RLEnvy(Envy, ABC):
 
 class FiniteActionsRLEnvy(RLEnvy):
     """ interface of RL Environment with finite actions number """
-
-    def __init__(self, **kwargs):
-        RLEnvy.__init__(self, **kwargs)
 
     @abstractmethod
     def get_valid_actions(self) -> List[object]:
