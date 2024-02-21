@@ -318,10 +318,11 @@ class TrainableActor(Actor, ABC):
         episode_reward = split_reward(batch['reward'], batch['terminal'])
         dreturn = []
         for rs in episode_reward:
-            dreturn += da_return(reward=rs, discount=self.discount)
+            dreturn.append(da_return(reward=rs, discount=self.discount))
+        dreturn = np.concatenate(dreturn, axis=-1)
         if self.do_zscore:
             dreturn = zscore_norm(dreturn)
-        training_data['dreturn'] = np.asarray(dreturn)
+        training_data['dreturn'] = dreturn
 
         return training_data
 

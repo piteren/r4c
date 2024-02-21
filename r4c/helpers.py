@@ -20,14 +20,14 @@ def zscore_norm(x:NPL) -> np.ndarray:
     return (x - np.mean(x)) / (np.std(x) + 0.00000001)
 
 
-def da_return(reward:List[float], discount:float) -> List[float]:
-    """ prepares list of return <- discounted accumulated reward """
+def da_return(reward:NPL, discount:float) -> np.ndarray:
+    """ prepares discounted accumulated reward """
     dar = np.zeros_like(reward, dtype=float)
     s = 0.0
     for i in reversed(range(len(reward))):
         s = s * discount + reward[i]
         dar[i] = s
-    return list(dar)
+    return dar
 
 
 def update_terminal_QVs(qvs:np.ndarray, terminal:np.ndarray) -> None:
@@ -37,7 +37,7 @@ def update_terminal_QVs(qvs:np.ndarray, terminal:np.ndarray) -> None:
         if t: qvs[ix] = qvs_terminal
 
 
-def split_reward(reward, terminal) -> List[List[float]]:
+def split_reward(reward:NPL, terminal:NPL) -> List[np.ndarray]:
     """ splits reward into episode reward """
 
     if len(reward) != len(terminal):
@@ -48,9 +48,10 @@ def split_reward(reward, terminal) -> List[List[float]]:
     for r, t in zip(reward, terminal):
         cep.append(r)
         if t:
-            episode_reward.append(cep)
+            episode_reward.append(np.asarray(cep))
             cep = []
-    if cep: episode_reward.append(cep)
+    if cep:
+        episode_reward.append(np.asarray(cep))
     return episode_reward
 
 
@@ -69,8 +70,8 @@ def plot_obs_act(observation:NPL, action:NPL):
 
 def plot_reward(
         reward,
-        terminal: Optional=    None,
-        discount: float=        0.9,
+        terminal: Optional[NPL]=    None,
+        discount: float=            0.9,
 ):
     """ plots batch of reward and some variants """
 
