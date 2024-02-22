@@ -80,10 +80,10 @@ class TrainableActor(Actor, ABC):
 
     def __init__(
             self,
-            exploration: float=         0.0,    # exploration probability while building experience (TR)
-            discount: float=            0.95,   # discount factor for discounted returns
-            do_zscore: bool=            False,  # apply zscore norm to discounted returns
-            batch_size: int=            64,
+            exploration: float,                 # exploration probability while building experience (TR)
+            discount: float,                    # discount factor for discounted returns
+            do_zscore: bool,                    # apply zscore norm to discounted returns
+            batch_size: int,
             mem_batches: Optional[int]= None,   # ExperienceMemory max size (in number of batches), for None is unlimited
             sample_memory: bool=        False,  # sample batch of single samples from memory or get_all and reset memory
             publish_TB: bool=           True,
@@ -310,7 +310,7 @@ class TrainableActor(Actor, ABC):
             'succeeded_row_max':    succeeded_row_max}
 
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
-        """ extracts from a batch + prepares dreturn """
+        """ extracts observation + action from a batch + prepares dreturn """
 
         dk = ['observation', 'action']
         training_data = {k: batch[k] for k in dk}
@@ -324,7 +324,7 @@ class TrainableActor(Actor, ABC):
             dreturn = zscore_norm(dreturn)
         training_data['dreturn'] = dreturn
 
-        return training_data
+        return training_data # observation, action, dreturn
 
     @abstractmethod
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
@@ -370,17 +370,15 @@ class FiniTRActor(TrainableActor, ABC):
         self.envy = envy  # to update the type (for pycharm)
 
     def _get_random_action(self) -> NUM:
-        return int(np.random.choice(self.envy.num_actions()))
+        return int(np.random.choice(self.envy.num_actions))
 
 
 class ProbTRActor(FiniTRActor, ABC):
-    """ Probabilistic FiniTRActor """
+    """ Probabilistic FiniTRActor, implements:
+    - sample_PL - sampling probability while playing
+    - sample_TR - sampling probability while training """
 
-    def __init__(
-            self,
-            sample_PL: float=   0.0, # PL sampling probability
-            sample_TR: float=   0.0, # TR sampling probability
-            **kwargs):
+    def __init__(self, sample_PL:float, sample_TR:float, **kwargs):
         FiniTRActor.__init__(self, **kwargs)
         self.sample_PL = sample_PL
         self.sample_TR = sample_TR
@@ -394,5 +392,5 @@ class ProbTRActor(FiniTRActor, ABC):
         probs = self._get_probs(observation)
         sample =        (self._is_training and np.random.rand() < self.sample_TR
                   or not self._is_training and np.random.rand() < self.sample_PL)
-        action = np.random.choice(self.envy.num_actions(), p=probs) if sample else np.argmax(probs)
+        action = np.random.choice(self.envy.num_actions, p=probs) if sample else np.argmax(probs)
         return {'probs':probs, 'action':action}

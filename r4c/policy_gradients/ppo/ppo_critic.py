@@ -23,6 +23,7 @@ class PPOCritic(TrainableCritic):
             module_type=        module_type,
             name=               self.name,
             observation_width=  self.actor.observation_width,
+            discount=           self.actor.discount,
             seed=               self.actor.seed,
             logger=             get_child(self.logger),
             **(motorch_point or {}))

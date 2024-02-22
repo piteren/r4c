@@ -22,7 +22,7 @@ class DQNActor(QLearningActor, ABC):
         QLearningActor.__init__(self, **kwargs)
 
         motorch_point = motorch_point or {}
-        motorch_point['num_actions'] = self.envy.num_actions()
+        motorch_point['num_actions'] = self.envy.num_actions
         motorch_point['observation_width'] = self._observation_vector(self.envy.get_observation()).shape[-1]
 
         self.model = MOTorch(

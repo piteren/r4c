@@ -25,7 +25,7 @@ class PGActor(ProbTRActor):
         self.model = MOTorch(
             module_type=        module_type,
             name=               self.name,
-            num_actions=        self.envy.num_actions(),
+            num_actions=        self.envy.num_actions,
             observation_width=  self.observation_width,
             seed=               self.seed,
             logger=             get_child(self.logger),

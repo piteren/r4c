@@ -30,11 +30,12 @@ def da_return(reward:NPL, discount:float) -> np.ndarray:
     return dar
 
 
-def update_terminal_QVs(qvs:np.ndarray, terminal:np.ndarray) -> None:
-    """ sets terminal states of QVs to zeroes (in place) """
-    qvs_terminal = np.zeros_like(qvs[0])
+def update_terminal_values(value:np.ndarray, terminal:np.ndarray) -> None:
+    """ sets terminal states of value to zeroes (in place) """
+    qvs_terminal = np.zeros_like(value[0])
     for ix, t in enumerate(terminal):
-        if t: qvs[ix] = qvs_terminal
+        if t:
+            value[ix] = qvs_terminal
 
 
 def split_reward(reward:NPL, terminal:NPL) -> List[np.ndarray]:

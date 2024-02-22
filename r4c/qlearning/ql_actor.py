@@ -3,19 +3,12 @@ import numpy as np
 from pypaq.pytypes import NUM
 from typing import Dict, Any
 
-from r4c.helpers import update_terminal_QVs
+from r4c.helpers import update_terminal_values
 from r4c.actor import FiniTRActor
 
 
 class QLearningActor(FiniTRActor, ABC):
-    """ QLearningActor, supports finite actions space environments (FiniteActionsRLEnvy) """
-
-    def __init__(
-            self,
-            gamma: float, # QLearning gamma (discount factor)
-            **kwargs):
-        FiniTRActor.__init__(self, **kwargs)
-        self.gamma = gamma
+    """ QLearningActor, supports finite actions space """
 
     @abstractmethod
     def _get_QVs(self, observation:np.ndarray) -> np.ndarray:
@@ -26,16 +19,10 @@ class QLearningActor(FiniTRActor, ABC):
         """ returns QVs (for all actions) for given observation batch, here baseline implementation """
         return np.asarray([self._get_QVs(o) for o in observation])
 
-    def _get_action(
-            self,
-            observation: np.ndarray,
-            explore: bool=  False,
-    ) -> NUM:
+    def _get_action(self, observation:np.ndarray) -> Dict[str,NUM]:
         """ returns action based on QVs """
-        if explore:
-            return int(np.random.choice(self.envy.num_actions()))
         qvs = self._get_QVs(observation)
-        return int(np.argmax(qvs))
+        return {'action': int(np.argmax(qvs))}
 
     @abstractmethod
     def _upd_QV(
@@ -50,13 +37,10 @@ class QLearningActor(FiniTRActor, ABC):
         """ extracts from a batch + adds new QV from Bellman Equation """
 
         next_observation_qvs = self.get_QVs_batch(batch['next_observation'])
-
-        update_terminal_QVs(
-            qvs=        next_observation_qvs,
-            terminal=   batch['terminal'])
+        update_terminal_values(value=next_observation_qvs, terminal=batch['terminal'])
 
         new_qv = [
-            r + self.gamma * max(no_qvs) # Bellman equation
+            r + self.discount * max(no_qvs) # Bellman equation
             for r, no_qvs in zip(batch['reward'], next_observation_qvs)]
 
         return {
@@ -76,5 +60,5 @@ class QLearningActor(FiniTRActor, ABC):
 
     def __str__(self):
         nfo = f'{super().__str__()}\n'
-        nfo += f'> gamma: {self.gamma}'
+        nfo += f'> discount: {self.discount}'
         return nfo

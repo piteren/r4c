@@ -4,14 +4,14 @@ from torchness.types import TNS, DTNS
 from torchness.layers import LayDense, zeroes
 
 
-# baseline AC Critic Module
 class ACCriticModule(Module):
+    """ baseline AC Critic Module """
 
     def __init__(
             self,
-            observation_width=  4,
-            gamma=              0.99,  # discount factor (gamma), replaces Actor discount parameter
-            num_actions: int=   2,
+            observation_width: int,
+            num_actions: int,
+            discount: float,
             n_hidden: int=      2,
             hidden_width: int=  12,
             lay_norm=           False,
@@ -22,7 +22,7 @@ class ACCriticModule(Module):
 
         Module.__init__(self, logger=logger, loglevel=loglevel)
 
-        self.gamma = gamma
+        self.discount = discount
         hidden_layers = [hidden_width] * n_hidden
 
         lay_shapeL = []
@@ -61,9 +61,7 @@ class ACCriticModule(Module):
 
         qvs = self.qvs(out)
 
-        return {
-            'qvs':      qvs,
-            'zeroes':   zsL}
+        return {'qvs':qvs, 'zeroes':zsL}
 
     def loss(
             self,
@@ -77,7 +75,7 @@ class ACCriticModule(Module):
         out = self(observation)
 
         next_state_V = torch.sum(next_observation_qvs * next_action_probs, dim=-1)
-        target_QV = reward + self.gamma * next_state_V
+        target_QV = reward + self.discount * next_state_V
         qv = out['qvs'][range(len(action_taken)),action_taken]
         diff = target_QV - qv
         loss = torch.mean(diff * diff) # MSE

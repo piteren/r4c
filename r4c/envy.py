@@ -91,11 +91,12 @@ class FiniteActionsRLEnvy(RLEnvy):
         """ returns list of valid actions """
         pass
 
+    @property
     def num_actions(self) -> int:
         """ returns number of Envy actions """
         return len(self.get_valid_actions())
 
     def __str__(self):
         nfo =  f'{super().__str__()}\n'
-        nfo += f'> num_actions: {self.num_actions()}'
+        nfo += f'> num_actions: {self.num_actions}'
         return nfo

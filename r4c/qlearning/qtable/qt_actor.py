@@ -55,14 +55,10 @@ class QTable:
 # implements QLearningActor with QTable
 class QTableActor(QLearningActor):
 
-    def __init__(
-            self,
-            name: str=          'QTableActor',
-            update_rate: float= 0.5,
-            **kwargs):
-        QLearningActor.__init__(self, name=name, **kwargs)
+    def __init__(self, update_rate:float, **kwargs):
+        QLearningActor.__init__(self, **kwargs)
         self.update_rate = update_rate
-        self.__qtable = QTable(self.envy.num_actions())
+        self.__qtable = QTable(self.envy.num_actions)
         self.logger.info('*** QTableActor *** initialized')
         self.logger.info(f'> update_rate: {self.update_rate}')
 

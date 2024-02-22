@@ -2,7 +2,7 @@ from abc import ABC
 from pypaq.lipytools.printout import stamp
 from typing import Optional
 
-from r4c.actor import Actor, TrainableActor
+from r4c.actor import Actor, TrainableActor, FiniTRActor
 
 
 class Critic(ABC):
@@ -40,5 +40,12 @@ class Critic(ABC):
 class TrainableCritic(Critic, ABC):
 
     def __init__(self, actor:TrainableActor, **kwargs):
+        Critic.__init__(self, actor=actor, **kwargs)
+        self.actor = actor # just for typing
+
+
+class FiniTRCritic(Critic, ABC):
+
+    def __init__(self, actor:FiniTRActor, **kwargs):
         Critic.__init__(self, actor=actor, **kwargs)
         self.actor = actor # just for typing

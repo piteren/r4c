@@ -1,39 +1,23 @@
 import numpy as np
 from typing import Dict, Any
 
-from r4c.helpers import update_terminal_QVs
+from r4c.helpers import update_terminal_values
 from r4c.policy_gradients.pg_actor import PGActor
 from r4c.policy_gradients.actor_critic.ac_critic import ACCritic
 
 
 class ACActor(PGActor):
 
-    def __init__(
-            self,
-            name: str=                      'ACActor',
-            critic_class: type(ACCritic)=   ACCritic,
-            **kwargs):
+    def __init__(self, **kwargs):
 
         # split kwargs assuming that Critic kwargs start with 'critic_'
         c_kwargs = {k[7:]: kwargs[k] for k in kwargs if k.startswith('critic_')}
         for k in c_kwargs:
             kwargs.pop(f'critic_{k}')
-        for k in ['logger','loglevel']:
-            if k in kwargs:
-                c_kwargs[k] = kwargs[k]
 
-        PGActor.__init__(self, name=name, **kwargs)
+        PGActor.__init__(self, **kwargs)
 
-        self.critic = critic_class(
-            observation_width=  self._observation_vector(self.envy.get_observation()).shape[-1],
-            num_actions=        self.envy.num_actions(),
-            tbwr=               self.tbwr,
-            hpmser_mode=        self.hpmser_mode,
-            seed=               kwargs['seed'],
-            **c_kwargs)
-
-        self.logger.info('*** ACActor *** initialized')
-        self.logger.info(f'> critic: {critic_class.__name__}')
+        self.critic = ACCritic(actor=self, **c_kwargs)
 
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
         """ prepares actor and critic data """
@@ -47,8 +31,8 @@ class ACActor(PGActor):
 
         # get QVs of next observation, those come without gradients, which is ok - no target backpropagation
         next_observation_qvs = self.critic.get_qvs(batch['next_observation'])
-        update_terminal_QVs(
-            qvs=        next_observation_qvs,
+        update_terminal_values(
+            value=        next_observation_qvs,
             terminal=   batch['terminal'])
         training_data['next_observation_qvs'] = next_observation_qvs
         training_data['next_action_probs'] = self._get_probs(batch['next_observation'])  # get next_observation action_probs (with Actor policy)

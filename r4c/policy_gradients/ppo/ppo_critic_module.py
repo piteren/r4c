@@ -4,16 +4,16 @@ from torchness.types import TNS, DTNS
 from torchness.layers import LayDense, zeroes
 
 
-# baseline PPO Critic Module
 class PPOCriticModule(Module):
+    """ baseline PPO Critic Module """
 
     def __init__(
             self,
-            observation_width=  4,
+            observation_width: int,
+            discount: float,
             n_hidden: int=      2,
             hidden_width: int=  12,
             lay_norm=           False,
-            gamma=              0.99,  # discount factor (replaces Actor discount)
             seed=               121,
             logger=             None,
             loglevel=           20,
@@ -45,7 +45,7 @@ class PPOCriticModule(Module):
             out_features=   1,
             activation=     None)
 
-        self.gamma = gamma
+        self.discount = discount
 
     def forward(self, observation:TNS) -> DTNS:
         out = self.ln(observation) if self.lay_norm else observation
@@ -68,7 +68,7 @@ class PPOCriticModule(Module):
         out = self(observation)
 
         next_state_V = torch.sum(next_observation_qvs * next_action_probs, dim=-1)
-        target_QV = reward + self.gamma * next_state_V
+        target_QV = reward + self.discount * next_state_V
         qv = out['qvs'][range(len(action_taken)),action_taken]
         diff = target_QV - qv
         loss = torch.mean(diff * diff) # MSE

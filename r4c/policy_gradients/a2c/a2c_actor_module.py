@@ -10,19 +10,14 @@ class A2CModule(Module):
 
     def __init__(
             self,
-            observation_width: int=             4,
-            num_actions: int=                   2,
+            observation_width: int,
+            num_actions: int,
             two_towers: bool=                   False,  # builds separate towers for Actor & Critic
             n_hidden: int=                      1,
             hidden_width: int=                  50,
             lay_norm: bool=                     False,
             clamp_advantage: Optional[float]=   0.5,    # limits advantage abs value
             use_huber: bool=                    False,  # for True uses Huber loss for Critic
-            opt_class=                          torch.optim.Adam,
-            #opt_class=                          torch.optim.SGD,
-            #opt_momentum=                       0.5,
-            #opt_nesterov=                       True,
-            # RMSProp, Adadelta
             logger=                             None,
             loglevel=                           20,
     ):

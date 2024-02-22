@@ -3,7 +3,7 @@ import torch
 from pypaq.pytypes import NUM
 from typing import Dict, Any
 
-from r4c.helpers import update_terminal_QVs
+from r4c.helpers import update_terminal_values
 from r4c.policy_gradients.pg_actor import PGActor
 from r4c.policy_gradients.ppo.ppo_actor_module import PPOActorModule
 from r4c.policy_gradients.ppo.ppo_critic import PPOCritic
@@ -33,10 +33,15 @@ class PPOActor(PGActor):
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
         """ prepares actor and critic data """
 
-        training_data = super()._build_training_data(batch)
+        training_data = super()._build_training_data(batch) # observation, action, dreturn
         # TODO: PPO in special way calculates dreturns (cleanrl ppo.py #214)
         for k in ['logprob','reward','value','terminal','next_observation']:
             training_data[k] = batch[k]
+
+        next_value = self.critic.get_value(observation=batch['next_observation'])
+        update_terminal_values(value=next_value, terminal=batch['terminal'])
+        training_data['next_value'] = next_value
+
         for k in training_data:
             print(k, training_data[k].shape, training_data[k])
 
