@@ -21,12 +21,11 @@ class PGActorModule(Module):
 
         Module.__init__(self, logger=logger, loglevel=loglevel)
 
-        hidden_layers = [hidden_width] * n_hidden
         lay_shapeL = []
         next_in = observation_width
-        for hl in hidden_layers:
-            lay_shapeL.append((next_in,hl))
-            next_in = hl
+        for _ in range(n_hidden):
+            lay_shapeL.append((next_in,hidden_width))
+            next_in = hidden_width
 
         self.lay_norm = lay_norm
 
@@ -63,10 +62,10 @@ class PGActorModule(Module):
         dist = torch.distributions.Categorical(logits=logits)
 
         return {
-            'logits':       logits,
-            'probs':        dist.probs,
-            'entropy':      dist.entropy().mean(),
-            'zeroes':       zsL}
+            'logits':   logits,
+            'probs':    dist.probs,
+            'entropy':  dist.entropy().mean(),
+            'zeroes':   zsL}
 
     def loss(
             self,

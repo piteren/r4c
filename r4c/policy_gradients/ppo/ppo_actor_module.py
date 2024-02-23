@@ -74,7 +74,7 @@ class PPOActorModule(Module):
             'logits':       logits,
             'probs':        dist.probs,
             'entropy':      dist.entropy().mean(),
-            'zeroes':       torch.cat(zsL).detach()}
+            'zeroes':       zsL}
 
     def fwd_logprob(self, observation:TNS, action:TNS) -> DTNS:
         """ FWD

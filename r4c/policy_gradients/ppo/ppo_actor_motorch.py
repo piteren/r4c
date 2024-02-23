@@ -5,6 +5,7 @@ from torchness.motorch import MOTorch
 
 
 class MOTorch_PPO(MOTorch):
+    """ MOTorch_PPO overrides MOTorch backward with minibatches """
 
     def __init__(self, **kwargs):
 
@@ -42,11 +43,7 @@ class MOTorch_PPO(MOTorch):
         res = {}
         for mb in minibatches:
 
-            out = self.loss(
-                bypass_data_conv=   bypass_data_conv,
-                set_training=       set_training,
-                **mb)
-            self.logger.debug(f'> loss() returned: {list(out.keys())}')
+            out = self.loss(bypass_data_conv=bypass_data_conv, set_training=set_training, **mb)
 
             for k in out:
                 if k not in res:
@@ -64,11 +61,14 @@ class MOTorch_PPO(MOTorch):
 
             self._opt.step()                # apply optimizer
 
-        ### merge outputs
+        self._scheduler.step()              # apply LR scheduler
+        self.train_step += 1                # update step
 
-        res_prep = {}
-        for k in ['probs','zeroes']:
-            res_prep[k] = torch.cat(res[k], dim=0)
+        ### merge res
+
+        res_prep = {
+            'probs':    torch.cat(res['probs'], dim=0),
+            'zeroes':   res['zeroes']}
 
         for k in [
             'entropy',
@@ -80,10 +80,8 @@ class MOTorch_PPO(MOTorch):
             'clipfracs']:
             res_prep[k] = torch.Tensor(res[k]).mean()
 
-        self._scheduler.step()  # apply LR scheduler
-        self.train_step += 1    # update step
-
-        res_prep['currentLR'] = self._scheduler.get_last_lr()[0]  # INFO: currentLR of the first group is taken
+        # INFO: currentLR of the first group is taken
+        res_prep['currentLR'] = self._scheduler.get_last_lr()[0]
 
         if empty_cuda_cache:
             torch.cuda.empty_cache()

@@ -3,7 +3,6 @@ from pypaq.pytypes import NUM
 from torchness.motorch import MOTorch, Module
 from typing import Dict, Any
 
-from r4c.helpers import update_terminal_values
 from r4c.policy_gradients.pg_actor import PGActor
 from r4c.policy_gradients.ppo.ppo_actor_motorch import MOTorch_PPO
 from r4c.policy_gradients.ppo.ppo_actor_module import PPOActorModule
@@ -38,13 +37,10 @@ class PPOActor(PGActor):
 
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
         """ prepares Actor and Critic training data """
-
-        # TODO: PPO computes dreturn in custom way (cleanrl ppo.py #214)
+        # INFO: PPO computes dreturn in a custom way, here classic baseline
         training_data = super()._build_training_data(batch) # observation, action, dreturn
-
         training_data['logprob'] = batch['logprob']
         training_data['advantage'] = training_data['dreturn'] - np.squeeze(batch['value'])
-
         return training_data
 
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:

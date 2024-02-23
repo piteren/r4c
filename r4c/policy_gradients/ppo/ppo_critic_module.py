@@ -55,7 +55,7 @@ class PPOCriticModule(Module):
             zsL.append(zeroes(out))
             if self.lay_norm:
                 out = ln(out)
-        return {'value':self.value(out), 'zeroes':torch.cat(zsL).detach()}
+        return {'value':self.value(out), 'zeroes':zsL}
 
     def loss(
             self,
@@ -64,7 +64,7 @@ class PPOCriticModule(Module):
     ) -> DTNS:
         out = self(observation)
         diff = dreturn - out['value']
-        # TODO: add PPO Critic loss clipping (cleanrl ppo.py #268)
+        # INFO: PPO clips Critic loss, here classic baseline without
         loss = torch.mean(diff * diff) # MSE
         out.update({'loss': loss})
         return out
