@@ -71,7 +71,7 @@ class PGActorModule(Module):
     def loss(
             self,
             observation: TNS,
-            action_taken: TNS,
+            action: TNS,
             dreturn: TNS,
     ) -> DTNS:
 
@@ -79,7 +79,7 @@ class PGActorModule(Module):
 
         actor_ce = torch.nn.functional.cross_entropy(
             input=      out['logits'],
-            target=     action_taken,
+            target=     action,
             reduction=  'none')
         loss = torch.mean(actor_ce * dreturn)
 

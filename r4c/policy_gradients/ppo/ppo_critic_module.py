@@ -59,7 +59,7 @@ class PPOCriticModule(Module):
     def loss(
             self,
             observation: TNS,
-            action_taken: TNS,
+            action: TNS,
             next_observation_qvs: TNS,
             next_action_probs: TNS,
             reward: TNS,
@@ -69,7 +69,7 @@ class PPOCriticModule(Module):
 
         next_state_V = torch.sum(next_observation_qvs * next_action_probs, dim=-1)
         target_QV = reward + self.discount * next_state_V
-        qv = out['qvs'][range(len(action_taken)),action_taken]
+        qv = out['qvs'][range(len(action)),action]
         diff = target_QV - qv
         loss = torch.mean(diff * diff) # MSE
 

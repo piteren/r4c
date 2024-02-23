@@ -1,24 +1,30 @@
 import numpy as np
-import torch
 from pypaq.pytypes import NUM
+from torchness.motorch import MOTorch, Module
 from typing import Dict, Any
 
 from r4c.helpers import update_terminal_values
 from r4c.policy_gradients.pg_actor import PGActor
+from r4c.policy_gradients.ppo.ppo_actor_motorch import MOTorch_PPO
 from r4c.policy_gradients.ppo.ppo_actor_module import PPOActorModule
 from r4c.policy_gradients.ppo.ppo_critic import PPOCritic
 
 
 class PPOActor(PGActor):
+    """ PPO Actor, MOTorch (NN) based """
 
-    def __init__(self, **kwargs):
+    def __init__(
+            self,
+            model_type: type(MOTorch)=      MOTorch_PPO,
+            module_type: type(Module)=      PPOActorModule,
+            **kwargs):
 
         # split kwargs assuming that Critic kwargs start with 'critic_'
         c_kwargs = {k[7:]: kwargs[k] for k in kwargs if k.startswith('critic_')}
         for k in c_kwargs:
             kwargs.pop(f'critic_{k}')
 
-        PGActor.__init__(self, module_type=PPOActorModule, **kwargs)
+        PGActor.__init__(self, model_type=model_type, module_type=module_type, **kwargs)
 
         self.critic = PPOCritic(actor=self, **c_kwargs)
 
@@ -34,7 +40,7 @@ class PPOActor(PGActor):
         """ prepares actor and critic data """
 
         training_data = super()._build_training_data(batch) # observation, action, dreturn
-        # TODO: PPO in special way calculates dreturns (cleanrl ppo.py #214)
+        # TODO: PPO computes dreturns in custom way (cleanrl ppo.py #214)
         for k in ['logprob','reward','value','terminal','next_observation']:
             training_data[k] = batch[k]
 
@@ -63,8 +69,10 @@ class PPOActor(PGActor):
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
         """ updates both NNs (actor + critic) """
 
-        actor_training_data = {k: training_data[k] for k in ['observation','action','dreturn']}
-        actor_metrics = super()._update(training_data=actor_training_data)
+        actor_metrics = self.model.backward(
+            observation=    training_data['observation'],
+            action=         training_data['action'],
+            dreturn=        training_data['dreturn'])
 
         critic_training_data = {k: training_data[k] for k in ['observation','action','next_observation_qvs','next_action_probs','reward']}
         critic_metrics = self.critic.update(training_data=critic_training_data)

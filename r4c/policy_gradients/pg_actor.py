@@ -16,13 +16,14 @@ class PGActor(ProbTRActor):
 
     def __init__(
             self,
+            model_type: type(MOTorch)=      MOTorch,
             module_type: type(Module)=      PGActorModule,
             motorch_point: Optional[POINT]= None,
             **kwargs):
 
         ProbTRActor.__init__(self, **kwargs)
 
-        self.model = MOTorch(
+        self.model = model_type(
             module_type=        module_type,
             name=               self.name,
             num_actions=        self.envy.num_actions,
@@ -42,7 +43,7 @@ class PGActor(ProbTRActor):
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
         return self.model.backward(
             observation=    training_data['observation'],
-            action_taken=   training_data['action'],
+            action=         training_data['action'],
             dreturn=        training_data['dreturn'])
 
     def _publish(

@@ -103,7 +103,7 @@ class A2CModule(Module):
     def loss(
             self,
             observation: TNS,
-            action_taken: TNS,
+            action: TNS,
             dreturn: TNS,
     ) -> DTNS:
 
@@ -123,7 +123,7 @@ class A2CModule(Module):
 
         actor_ce = torch.nn.functional.cross_entropy(
             input=      logits,
-            target=     action_taken,
+            target=     action,
             reduction=  'none')
         loss_actor = torch.mean(actor_ce * advantage_nograd)
 

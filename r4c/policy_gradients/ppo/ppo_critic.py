@@ -41,11 +41,11 @@ class PPOCritic(TrainableCritic):
     def update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
         self._upd_step += 1
         return self.model.backward(
-            observation=           training_data['observation'],
-            action_taken=          training_data['action'],
-            next_observation_qvs=  training_data['next_observation_qvs'],
-            next_action_probs=     training_data['next_action_probs'],
-            reward=                training_data['reward'])
+            observation=            training_data['observation'],
+            action=                 training_data['action'],
+            next_observation_qvs=   training_data['next_observation_qvs'],
+            next_action_probs=      training_data['next_action_probs'],
+            reward=                 training_data['reward'])
 
     def publish(self, metrics:Dict[str,Any]):
 

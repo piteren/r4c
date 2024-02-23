@@ -4,19 +4,17 @@ from torchness.types import DTNS
 from torchness.motorch import MOTorch
 
 
-class DMK_MOTorch_PPO(MOTorch):
+class MOTorch_PPO(MOTorch):
 
-    """
-    def __init__(self, module_type=ProCNN_DMK_PPO, **kwargs):
+    def __init__(self, **kwargs):
+
+        MOTorch.__init__(self, **kwargs)
 
         # INFO: for large PPO updates disables strange CUDA error
         # those backends turn on / off implementations of SDP (scaled dot product attention)
         torch.backends.cuda.enable_mem_efficient_sdp(False) # enables or disables Memory-Efficient Attention
         torch.backends.cuda.enable_flash_sdp(False) # enables or disables FlashAttention
         torch.backends.cuda.enable_math_sdp(True) # enables or disables PyTorch C++ implementation
-
-        DMK_MOTorch_PG.__init__(self, module_type=module_type, **kwargs)
-    """
 
     def backward(
             self,
@@ -27,15 +25,14 @@ class DMK_MOTorch_PPO(MOTorch):
     ) -> DTNS:
         """ backward in PPO mode """
 
-        batch = kwargs
+        batch = {k: self.convert(data=kwargs[k]) for k in kwargs}
 
-        # until now batch is a dict {key: TNS}, where TNS is a rectangle [len(upd_pid), n_states_upd, feats]
-        batch_width = batch['old_logprob'].shape[0]
-        mb_size = batch_width // self.minibatch_num
+        batch_len = batch['action'].shape[0]
+        mb_size = batch_len // self.minibatch_num
         batch_spl = {k: torch.split(batch[k], mb_size, dim=0) for k in batch} # split along 0 axis into chunks of mb_size
         minibatches = [
             {k: batch_spl[k][ix] for k in batch}            # list of dicts {key: TNS}, where TNS is a minibatch rectangle
-            for ix in range(len(batch_spl['old_logprob']))] # num of minibatches
+            for ix in range(len(batch_spl['action']))]      # num of minibatches
 
         if self.n_epochs_ppo > 1:
             mb_more = minibatches * (self.n_epochs_ppo - 1)
