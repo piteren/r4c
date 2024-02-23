@@ -14,6 +14,8 @@ class PPOActorModule(Module):
             num_actions: int,
             minibatch_num: int,
             n_epochs_ppo: int,
+            clip_coef: float,
+            entropy_coef: float,
             n_hidden: int=      2,
             hidden_width: int=  12,
             lay_norm=           False,
@@ -49,6 +51,9 @@ class PPOActorModule(Module):
             out_features=   num_actions,
             activation=     None)
 
+        self.clip_coef = clip_coef
+        self.entropy_coef = entropy_coef
+
     def forward(self, observation:TNS) -> DTNS:
 
         out = observation
@@ -69,7 +74,7 @@ class PPOActorModule(Module):
             'logits':       logits,
             'probs':        dist.probs,
             'entropy':      dist.entropy().mean(),
-            'zeroes':       zsL}
+            'zeroes':       torch.cat(zsL).detach()}
 
     def fwd_logprob(self, observation:TNS, action:TNS) -> DTNS:
         """ FWD
@@ -101,64 +106,32 @@ class PPOActorModule(Module):
 
         return out
 
+    def loss_actor(self, advantage:TNS, ratio:TNS) -> TNS:
+        """ actor (policy) loss, clipped """
+        pg_loss1 = -advantage * ratio
+        pg_loss2 = -advantage * torch.clamp(ratio, 1 - self.clip_coef, 1 + self.clip_coef)
+        return torch.max(pg_loss1, pg_loss2)
+
     def loss(
             self,
             observation: TNS,
             action: TNS,
-            dreturn: TNS,
+            advantage: TNS,
             logprob: TNS,
     ) -> DTNS:
 
-        # TODO: rewrite with PPO
-        # below is a pypoks version (no critic & advantages)
+        out = self.fwd_logprob_ratio(observation=observation, action=action, old_logprob=logprob)
 
-        ratio_out = self.fwd_logprob_ratio(observation=observation, action=action, old_logprob=logprob)
-
-
-
-
-        reward_norm = self.norm(reward)
-
-        loss_actor = self.loss_actor(
-            advantage=  reward_norm if self.reward_norm else reward,
-            ratio=      ratio_out['ratio'])
-        loss_actor *= deciding_state
+        loss_actor = self.loss_actor(advantage=advantage, ratio=out['ratio'])
         loss_actor = torch.mean(loss_actor)
 
-        entropy = ratio_out['entropy']
+        entropy = out['entropy']
         loss_entropy_factor = self.entropy_coef * entropy
 
-        loss_nam = self.loss_nam(
-            logits=         ratio_out['logits'],
-            allowed_moves=  allowed_moves)
-        loss_nam *= deciding_state
-        loss_nam = torch.mean(loss_nam)
-        loss_nam_factor = self.nam_loss_coef * loss_nam
+        loss = loss_actor - loss_entropy_factor
 
-        loss = loss_actor - loss_entropy_factor + loss_nam_factor
-
-        out = ratio_out
         out.update({
-            'reward':       reward,
-            'reward_norm':  reward_norm,
             'entropy':      entropy,
             'loss':         loss,
-            'loss_actor':   loss_actor,
-            'loss_nam':     loss_nam})
-        return out
-        """
-
-        out = self(observation)
-
-        actor_ce = torch.nn.functional.cross_entropy(
-            input=      out['logits'],
-            target=     action,
-            reduction=  'none')
-        loss = torch.mean(actor_ce * dreturn)
-
-        out.update({
-            'cross_entropy':    torch.mean(actor_ce),
-            'entropy':          out['entropy'],
-            'loss':             loss})
-
+            'loss_actor':   loss_actor})
         return out

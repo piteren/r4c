@@ -40,7 +40,7 @@ class PPOCriticModule(Module):
             self.add_module(f'lay_ln{lix}', ln)
             lix += 1
 
-        self.qvs = LayDense(
+        self.value = LayDense(
             in_features=    next_in,
             out_features=   1,
             activation=     None)
@@ -53,25 +53,18 @@ class PPOCriticModule(Module):
         for lin,ln in zip(self.linL,self.lnL):
             out = lin(out)
             zsL.append(zeroes(out))
-            if self.lay_norm: out = ln(out)
-        return {'value':self.qvs(out), 'zeroes':zsL}
+            if self.lay_norm:
+                out = ln(out)
+        return {'value':self.value(out), 'zeroes':torch.cat(zsL).detach()}
 
     def loss(
             self,
             observation: TNS,
-            action: TNS,
-            next_observation_qvs: TNS,
-            next_action_probs: TNS,
-            reward: TNS,
+            dreturn: TNS,
     ) -> DTNS:
-
         out = self(observation)
-
-        next_state_V = torch.sum(next_observation_qvs * next_action_probs, dim=-1)
-        target_QV = reward + self.discount * next_state_V
-        qv = out['qvs'][range(len(action)),action]
-        diff = target_QV - qv
+        diff = dreturn - out['value']
+        # TODO: add PPO Critic loss clipping (cleanrl ppo.py #268)
         loss = torch.mean(diff * diff) # MSE
-
         out.update({'loss': loss})
         return out

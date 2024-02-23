@@ -41,10 +41,7 @@ class PGActor(ProbTRActor):
         return self.model(observation=observation)['probs'].cpu().detach().numpy()
 
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
-        return self.model.backward(
-            observation=    training_data['observation'],
-            action=         training_data['action'],
-            dreturn=        training_data['dreturn'])
+        return self.model.backward(**training_data)
 
     def _publish(
             self,
@@ -56,7 +53,8 @@ class PGActor(ProbTRActor):
 
             self.tbwr.add_histogram(values=batch['observation'], tag='observation', step=self._upd_step)
 
-            metrics.pop('logits')
+            if 'logits' in metrics:
+                metrics.pop('logits')
 
             probs = metrics.pop('probs').cpu().detach().numpy()
             pm = avg_mm_probs(probs)

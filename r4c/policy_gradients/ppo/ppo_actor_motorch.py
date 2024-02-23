@@ -67,35 +67,18 @@ class MOTorch_PPO(MOTorch):
         ### merge outputs
 
         res_prep = {}
-        for k in [
-            'probs',
-            'fin_state',
-            'zeroes_enc',
-            'zeroes_cnn',
-            'reward',
-            'reward_norm',
-            'ratio']:
+        for k in ['probs','zeroes']:
             res_prep[k] = torch.cat(res[k], dim=0)
 
         for k in [
             'entropy',
             'loss',
             'loss_actor',
-            'loss_nam',
             'gg_norm',
             'gg_norm_clip',
             'approx_kl',
             'clipfracs']:
             res_prep[k] = torch.Tensor(res[k]).mean()
-
-        # trim to batch width
-        if self.n_epochs_ppo > 1:
-            for k in [
-                'fin_state',
-                'reward',
-                'reward_norm',
-            ]:
-                res_prep[k] = res_prep[k][:batch_width]
 
         self._scheduler.step()  # apply LR scheduler
         self.train_step += 1    # update step

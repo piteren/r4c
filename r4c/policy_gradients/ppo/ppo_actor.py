@@ -37,44 +37,23 @@ class PPOActor(PGActor):
         return ad
 
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
-        """ prepares actor and critic data """
+        """ prepares Actor and Critic training data """
 
+        # TODO: PPO computes dreturn in custom way (cleanrl ppo.py #214)
         training_data = super()._build_training_data(batch) # observation, action, dreturn
-        # TODO: PPO computes dreturns in custom way (cleanrl ppo.py #214)
-        for k in ['logprob','reward','value','terminal','next_observation']:
-            training_data[k] = batch[k]
 
-        next_value = self.critic.get_value(observation=batch['next_observation'])
-        update_terminal_values(value=next_value, terminal=batch['terminal'])
-        training_data['next_value'] = next_value
+        training_data['logprob'] = batch['logprob']
+        training_data['advantage'] = training_data['dreturn'] - np.squeeze(batch['value'])
 
-        for k in training_data:
-            print(k, training_data[k].shape, training_data[k])
-
-        """
-        # get QV of action
-        qvs = self.critic.get_qvs(batch['observation']) # QVs of current observation
-        training_data['dreturn'] = qvs[range(len(batch['action'])), batch['action']] # get QV of selected action
-
-        # get QVs of next observation, those come without gradients, which is ok - no target backpropagation
-        next_observation_qvs = self.critic.get_qvs(batch['next_observation'])
-        update_terminal_QVs(
-            qvs=        next_observation_qvs,
-            terminal=  batch['terminal'])
-        training_data['next_observation_qvs'] = next_observation_qvs
-        training_data['next_action_probs'] = self._get_probs(batch['next_observation'])  # get next_observation action_probs (with Actor policy)
-        """
         return training_data
 
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
         """ updates both NNs (actor + critic) """
 
-        actor_metrics = self.model.backward(
-            observation=    training_data['observation'],
-            action=         training_data['action'],
-            dreturn=        training_data['dreturn'])
+        actor_training_data = {k: training_data[k] for k in ['observation','action','advantage','logprob']}
+        actor_metrics = super()._update(actor_training_data)
 
-        critic_training_data = {k: training_data[k] for k in ['observation','action','next_observation_qvs','next_action_probs','reward']}
+        critic_training_data = {k: training_data[k] for k in ['observation','dreturn']}
         critic_metrics = self.critic.update(training_data=critic_training_data)
 
         # merge metrics
@@ -88,7 +67,6 @@ class PPOActor(PGActor):
             batch: Dict[str,np.ndarray],
             metrics: Dict[str,Any],
     ) -> None:
-
         critic_metrics = {k: metrics[k] for k in metrics if k.startswith('critic')}
         for k in critic_metrics:
             metrics.pop(k)
