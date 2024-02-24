@@ -7,7 +7,6 @@ from r4c.actor import ProbTRActor, MOTRActor
 from r4c.policy_gradients.pg_actor_module import PGActorModule
 
 
-
 class PGActor(ProbTRActor, MOTRActor):
     """ Policy Gradient MOTRActor """
 

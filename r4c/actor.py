@@ -59,7 +59,7 @@ class Actor(ABC):
     def get_action(self, observation:np.ndarray) -> Dict[str,NUM]:
         """ Actor (agent) gets observation and executes an action with the policy,
         action is based on observation,
-        returns a dict with some data like probs, action, logprob, value.. """
+        returns a dict with some data like action, probs, logprob, value .. """
         pass
 
     @abstractmethod
@@ -126,7 +126,7 @@ class TrainableActor(Actor, ABC):
 
     @abstractmethod
     def _get_random_action(self) -> NUM:
-        """ returns 100% random action """
+        """ returns 100% random action, not based on policy """
         pass
 
     def _move(self) -> Dict[str,NUM]:
@@ -312,8 +312,8 @@ class TrainableActor(Actor, ABC):
             'n_updates_done':       batch_ix-1,
             'succeeded_row_max':    succeeded_row_max}
 
-    # TODO: add typing
-    def _get_dreturn(self, reward:np.ndarray, terminal:np.ndarray) -> np.ndarray:
+    def _prepare_dreturn(self, reward:np.ndarray, terminal:np.ndarray) -> np.ndarray:
+        """ prepares discounted return for given history """
         episode_reward = split_reward(reward, terminal)
         dreturn = []
         for rs in episode_reward:
@@ -327,7 +327,7 @@ class TrainableActor(Actor, ABC):
         """ extracts observation + action from a batch + prepares dreturn """
         dk = ['observation', 'action']
         training_data = {k: batch[k] for k in dk}
-        training_data['dreturn'] = self._get_dreturn(reward=batch['reward'], terminal=batch['terminal'])
+        training_data['dreturn'] = self._prepare_dreturn(reward=batch['reward'], terminal=batch['terminal'])
         return training_data
 
     @abstractmethod

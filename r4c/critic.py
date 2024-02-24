@@ -12,6 +12,8 @@ from r4c.actor import Actor, TrainableActor, FiniTRActor
 
 
 class Critic(ABC):
+    """ Critic does not exist without an Actor,
+    it gets many properties from an Actor """
 
     def __init__(self, actor:Actor, name:Optional[str]=None):
 
@@ -30,8 +32,7 @@ class Critic(ABC):
 
     @abstractmethod
     def get_value(self, observation:np.ndarray) -> NUM:
-        """ Critic gets observation
-        and returns a value for state / actions """
+        """ Critic returns a value for state / actions based on observation """
         pass
 
     @abstractmethod
@@ -41,13 +42,11 @@ class Critic(ABC):
     def load(self): pass
 
     def __str__(self):
-        nfo =  f'{self.__class__.__name__} (Critic) : {self.name}\n'
-        nfo += f'> observation width: {self.actor.observation_width}'
-        return nfo
+        return f'{self.__class__.__name__} (Critic) : {self.name}'
 
 
 class TrainableCritic(Critic, ABC):
-    """ TrainableCritic Learns (value?) from Envy """
+    """ TrainableCritic learns (value?) from an Envy """
 
     def __init__(self, actor:TrainableActor, **kwargs):
         super().__init__(actor=actor, **kwargs)
@@ -55,15 +54,16 @@ class TrainableCritic(Critic, ABC):
 
     @abstractmethod
     def build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
-        """ prepares Critic training data """
+        """ prepares Critic training data, usually called by an Actor """
         pass
 
     @abstractmethod
     def update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
-        """ updates Critic (value function) returns metrics with 'loss' """
+        """ updates Critic (value function) returns metrics with 'loss', usually called by an Actor """
         pass
 
     def publish(self, metrics:Dict[str,Any]) -> None:
+        """ usually called by an Actor """
         if self.actor.tbwr:
             for k, v in metrics.items():
                 self.actor.tbwr.add(value=v, tag=f'critic/{k[7:]}', step=self.actor.upd_step)
@@ -78,7 +78,9 @@ class FiniTRCritic(TrainableCritic, ABC):
 
 
 class MOTRCritic(TrainableCritic, ABC):
-    """ MOTRCritic is a MOTorch (NN model) based TrainableCritic """
+    """ MOTRCritic is a MOTorch (NN model) based TrainableCritic
+    its functionality is similar to MOTRActor
+    common similarity could be extracted with OOP (I tried but failed) """
 
     def __init__(
             self,

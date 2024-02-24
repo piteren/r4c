@@ -38,7 +38,7 @@ class PPOActor(ACActor):
         dk = ['observation', 'action']
         training_data = {k: batch[k] for k in dk}
         # INFO: PPO computes dreturn in a custom way, here classic baseline
-        training_data['dreturn'] = self._get_dreturn(reward=batch['reward'], terminal=batch['terminal'])
+        training_data['dreturn'] = self._prepare_dreturn(reward=batch['reward'], terminal=batch['terminal'])
 
         training_data['logprob'] = batch['logprob']
         training_data['advantage'] = training_data['dreturn'] - np.squeeze(batch['value'])
