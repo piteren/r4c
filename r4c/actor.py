@@ -333,7 +333,7 @@ class TrainableActor(Actor, ABC):
     @abstractmethod
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
         """ updates policy or value function (Actor, Critic ar any other component), returns metrics with 'loss' """
-        pass
+        return {'observation': training_data['observation']}
 
     def test_on_episodes(self, n_episodes:int=10, max_steps:Optional[int]=None) -> Tuple[float, float, float]:
         """ plays n episodes, returns tuple with won_factor & avg_reward """
@@ -354,14 +354,10 @@ class TrainableActor(Actor, ABC):
 
         if self.tbwr:
 
-            if 'logits' in metrics:
-                metrics.pop('logits')
-
-            if 'observation' in metrics:
-                self.tbwr.add_histogram(
-                    values= metrics.pop('observation'),
-                    tag=    'observation',
-                    step=   self.upd_step)
+            self.tbwr.add_histogram(
+                values= metrics.pop('observation'),
+                tag=    'observation',
+                step=   self.upd_step)
 
             for k,v in metrics.items():
                 self.tbwr.add(value=v, tag=f'actor/{k}', step=self.upd_step)
