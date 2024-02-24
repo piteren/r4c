@@ -1,11 +1,15 @@
 from abc import abstractmethod, ABC
 import numpy as np
 from pypaq.pytypes import NUM
+from pypaq.pms.base import POINT
 from pypaq.lipytools.printout import stamp
 from pypaq.lipytools.pylogger import get_pylogger, get_child
 from pypaq.lipytools.moving_average import MovAvg
 import time
 from torchness.tbwr import TBwr
+from torchness.comoneural.avg_probs import avg_mm_probs
+from torchness.comoneural.zeroes_processor import ZeroesProcessor
+from torchness.motorch import MOTorch, Module
 from typing import Optional, Dict, Any, Tuple
 
 from r4c.envy import RLEnvy, FiniteActionsRLEnvy
@@ -14,7 +18,6 @@ from r4c.experience_memory import ExperienceMemory
 
 
 class Actor(ABC):
-    """ Actor (abstract) """
 
     def __init__(
             self,
@@ -53,7 +56,7 @@ class Actor(ABC):
             raise R4Cexception ('TrainableActor should implement get_observation_vec()')
 
     @abstractmethod
-    def _get_action(self, observation:np.ndarray) -> Dict[str,NUM]:
+    def get_action(self, observation:np.ndarray) -> Dict[str,NUM]:
         """ Actor (agent) gets observation and executes an action with the policy,
         action is based on observation,
         returns a dict with some data like probs, action, logprob, value.. """
@@ -76,7 +79,7 @@ class Actor(ABC):
 
 
 class TrainableActor(Actor, ABC):
-    """ Plays & Learns on Envy """
+    """ TrainableActor is an Actor that Plays & Learns on Envy """
 
     def __init__(
             self,
@@ -91,7 +94,7 @@ class TrainableActor(Actor, ABC):
             seed: int=                  123,
             **kwargs):
 
-        Actor.__init__(self, **kwargs)
+        super().__init__(**kwargs)
 
         """ Actor manages its trainable state, by default is false, only run_train() changes.
         Trainable state may be used for example by _get_action for exploration. """
@@ -110,6 +113,7 @@ class TrainableActor(Actor, ABC):
         self.do_zscore = do_zscore
         self.exploration = exploration
         self.batch_size = batch_size
+        self.upd_step = 0  # global update step
 
         self.hpmser_mode = hpmser_mode
         # early override
@@ -117,7 +121,6 @@ class TrainableActor(Actor, ABC):
             publish_TB = False
 
         self.tbwr = TBwr(logdir=self.save_dir) if publish_TB else None
-        self._upd_step = 0  # global update step
 
         np.random.seed(self.seed)
 
@@ -136,7 +139,7 @@ class TrainableActor(Actor, ABC):
         observation = self.envy.get_observation()
         observation_vector = self._observation_vector(observation)
 
-        ad = self._get_action(observation=observation_vector)
+        ad = self.get_action(observation=observation_vector)
         if self._is_training and np.random.rand() < self.exploration:
             ad['action'] = self._get_random_action()
 
@@ -212,7 +215,7 @@ class TrainableActor(Actor, ABC):
             break_ntests: Optional[int]=    None,   # breaks training after all test episodes succeeded N times in a row
             picture: bool=                  False,  # plots and renders while testing
     ) -> dict:
-        """ RL training procedure, returns dict with some training stats """
+        """ generic RL training procedure, returns dict with some training stats """
 
         self.envy.reset()
         self.memory.reset()
@@ -253,8 +256,8 @@ class TrainableActor(Actor, ABC):
             metrics = self._update(training_data=training_data)
             lossL.append(loss_mavg.upd(metrics['loss']))
 
-            self._publish(batch=batch, metrics=metrics)
-            self._upd_step += 1
+            self._publish(metrics)
+            self.upd_step += 1
 
             ### test
 
@@ -309,22 +312,23 @@ class TrainableActor(Actor, ABC):
             'n_updates_done':       batch_ix-1,
             'succeeded_row_max':    succeeded_row_max}
 
-    def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
-        """ extracts observation + action from a batch + prepares dreturn """
-
-        dk = ['observation', 'action']
-        training_data = {k: batch[k] for k in dk}
-
-        episode_reward = split_reward(batch['reward'], batch['terminal'])
+    # TODO: add typing
+    def _get_dreturn(self, reward:np.ndarray, terminal:np.ndarray) -> np.ndarray:
+        episode_reward = split_reward(reward, terminal)
         dreturn = []
         for rs in episode_reward:
             dreturn.append(da_return(reward=rs, discount=self.discount))
         dreturn = np.concatenate(dreturn, axis=-1)
         if self.do_zscore:
             dreturn = zscore_norm(dreturn)
-        training_data['dreturn'] = dreturn
+        return dreturn
 
-        return training_data # observation, action, dreturn
+    def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
+        """ extracts observation + action from a batch + prepares dreturn """
+        dk = ['observation', 'action']
+        training_data = {k: batch[k] for k in dk}
+        training_data['dreturn'] = self._get_dreturn(reward=batch['reward'], terminal=batch['terminal'])
+        return training_data
 
     @abstractmethod
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
@@ -346,14 +350,21 @@ class TrainableActor(Actor, ABC):
             sum_action += len(ed['observation'])
         return n_won/n_episodes, sum_reward/n_episodes, sum_action/n_episodes
 
-    def _publish(
-            self,
-            batch: Dict[str,np.ndarray],
-            metrics: Dict[str,Any],
-    ) -> None:
-        """ publishes to TB """
+    def _publish(self, metrics:Dict[str,Any]) -> None:
+
         if self.tbwr:
-            self.tbwr.add(value=metrics['loss'], tag=f'actor/loss', step=self._upd_step)
+
+            if 'logits' in metrics:
+                metrics.pop('logits')
+
+            if 'observation' in metrics:
+                self.tbwr.add_histogram(
+                    values= metrics.pop('observation'),
+                    tag=    'observation',
+                    step=   self.upd_step)
+
+            for k,v in metrics.items():
+                self.tbwr.add(value=v, tag=f'actor/{k}', step=self.upd_step)
 
     def __str__(self) -> str:
         nfo =  f'{super().__str__()}\n'
@@ -363,10 +374,10 @@ class TrainableActor(Actor, ABC):
 
 
 class FiniTRActor(TrainableActor, ABC):
-    """ TrainableActor for FiniteActionsRLEnvy """
+    """ FiniTRActor is a TrainableActor for FiniteActionsRLEnvy """
 
     def __init__(self, envy:FiniteActionsRLEnvy, **kwargs):
-        TrainableActor.__init__(self, envy=envy, **kwargs)
+        super().__init__(envy=envy, **kwargs)
         self.envy = envy  # to update the type (for pycharm)
 
     def _get_random_action(self) -> NUM:
@@ -374,12 +385,12 @@ class FiniTRActor(TrainableActor, ABC):
 
 
 class ProbTRActor(FiniTRActor, ABC):
-    """ Probabilistic FiniTRActor, implements:
+    """ ProbTRActor is a Probabilistic FiniTRActor, implements:
     - sample_PL - sampling probability while playing
     - sample_TR - sampling probability while training """
 
     def __init__(self, sample_PL:float, sample_TR:float, **kwargs):
-        FiniTRActor.__init__(self, **kwargs)
+        super().__init__(**kwargs)
         self.sample_PL = sample_PL
         self.sample_TR = sample_TR
 
@@ -388,9 +399,73 @@ class ProbTRActor(FiniTRActor, ABC):
         """ runs agent policy to return policy probs """
         pass
 
-    def _get_action(self, observation:np.ndarray) -> Dict[str,NUM]:
+    def get_action(self, observation:np.ndarray) -> Dict[str,NUM]:
         probs = self._get_probs(observation)
         sample =        (self._is_training and np.random.rand() < self.sample_TR
                   or not self._is_training and np.random.rand() < self.sample_PL)
         action = np.random.choice(self.envy.num_actions, p=probs) if sample else np.argmax(probs)
         return {'probs':probs, 'action':action}
+
+    def _publish(self, metrics:Dict[str,Any]) -> None:
+
+        if self.tbwr:
+
+            probs = metrics.pop('probs').cpu().detach().numpy()
+            pm = avg_mm_probs(probs)
+            for k in pm:
+                self.tbwr.add(value=pm[k], tag=f'actor/{k}', step=self.upd_step)
+
+            super()._publish(metrics)
+
+
+class MOTRActor(TrainableActor, ABC):
+    """ MOTRActor is a MOTorch (NN model) based TrainableActor """
+
+    def __init__(
+            self,
+            module_type: Optional[type(Module)],
+            model_type: type(MOTorch)=      MOTorch,
+            motorch_point: Optional[POINT]= None,
+            **kwargs):
+
+        super().__init__(**kwargs)
+
+        self.model = model_type(
+            module_type=        module_type,
+            **self._actor_motorch_point(),
+            **(motorch_point or {}))
+
+        self._zepro = ZeroesProcessor(
+            intervals=  (10, 50, 100),
+            tbwr=       self.tbwr) if self.tbwr else None
+
+    def _actor_motorch_point(self) -> POINT:
+        """ prepares Actor specific motorch_point addon """
+        return {
+            'name':                 self.name,
+            'observation_width':    self.observation_width,
+            'seed':                 self.seed,
+            'logger':               get_child(self.logger),
+            'hpmser_mode':          self.hpmser_mode}
+
+    def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
+        """ update with NN backprop """
+        actor_metrics = self.model.backward(**training_data)
+        actor_metrics['observation'] = training_data['observation']
+        return actor_metrics
+
+    def _publish(self, metrics:Dict[str,Any]) -> None:
+        if self.tbwr:
+            self._zepro.process(zeroes=metrics.pop('zeroes'), step=self.upd_step)
+            super()._publish(metrics)
+
+    def save(self):
+        self.model.save()
+
+    def load(self):
+        self.model.load()
+
+    def __str__(self) -> str:
+        nfo = f'{super().__str__()}\n'
+        nfo += str(self.model)
+        return nfo

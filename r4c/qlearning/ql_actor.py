@@ -19,7 +19,7 @@ class QLearningActor(FiniTRActor, ABC):
         """ returns QVs (for all actions) for given observation batch, here baseline implementation """
         return np.asarray([self._get_QVs(o) for o in observation])
 
-    def _get_action(self, observation:np.ndarray) -> Dict[str,NUM]:
+    def get_action(self, observation:np.ndarray) -> Dict[str,NUM]:
         """ returns action based on QVs """
         qvs = self._get_QVs(observation)
         return {'action': int(np.argmax(qvs))}
@@ -36,17 +36,17 @@ class QLearningActor(FiniTRActor, ABC):
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
         """ extracts from a batch + adds new QV from Bellman Equation """
 
+        dk = ['observation', 'action']
+        training_data = {k: batch[k] for k in dk}
+
         next_observation_qvs = self.get_QVs_batch(batch['next_observation'])
         update_terminal_values(value=next_observation_qvs, terminal=batch['terminal'])
-
         new_qv = [
             r + self.discount * max(no_qvs) # Bellman equation
             for r, no_qvs in zip(batch['reward'], next_observation_qvs)]
+        training_data['new_qv'] = np.asarray(new_qv)
 
-        return {
-            'observation':  batch['observation'],
-            'action':       batch['action'],
-            'new_qv':       np.asarray(new_qv)}
+        return training_data
 
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
         """ updates QV """

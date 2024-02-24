@@ -18,11 +18,9 @@ class A2CModule(Module):
             lay_norm: bool=                     False,
             clamp_advantage: Optional[float]=   0.5,    # limits advantage abs value
             use_huber: bool=                    False,  # for True uses Huber loss for Critic
-            logger=                             None,
-            loglevel=                           20,
-    ):
+            **kwargs):
 
-        Module.__init__(self, logger=logger, loglevel=loglevel)
+        super().__init__(**kwargs)
 
         hidden_layers = [hidden_width] * n_hidden
         lay_shapeL = []

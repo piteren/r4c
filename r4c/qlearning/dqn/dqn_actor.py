@@ -1,11 +1,11 @@
 from abc import ABC
 import numpy as np
 from pypaq.pms.base import POINT
+from pypaq.lipytools.pylogger import get_child
 from torchness.motorch import MOTorch, Module
 from torchness.comoneural.zeroes_processor import ZeroesProcessor
 from typing import Optional, Dict, Any
 
-from r4c.helpers import R4Cexception
 from r4c.qlearning.ql_actor import QLearningActor
 from r4c.qlearning.dqn.dqn_actor_module import DQNModel
 
@@ -19,19 +19,17 @@ class DQNActor(QLearningActor, ABC):
             motorch_point: Optional[POINT]=         None,
             **kwargs):
 
-        QLearningActor.__init__(self, **kwargs)
-
-        motorch_point = motorch_point or {}
-        motorch_point['num_actions'] = self.envy.num_actions
-        motorch_point['observation_width'] = self._observation_vector(self.envy.get_observation()).shape[-1]
+        super().__init__(**kwargs)
 
         self.model = MOTorch(
-            module_type=    module_type,
-            name=           self.name,
-            seed=           self.seed,
-            logger=         self.logger,
-            hpmser_mode=    self.hpmser_mode,
-            **motorch_point)
+            module_type=        module_type,
+            name=               self.name,
+            num_actions=        self.envy.num_actions,
+            observation_width=  self.observation_width,
+            seed=               self.seed,
+            logger=             get_child(self.logger),
+            hpmser_mode=        self.hpmser_mode,
+            **(motorch_point or {}))
 
         self._zepro = ZeroesProcessor(
             intervals=  (10, 50, 100),
@@ -50,20 +48,20 @@ class DQNActor(QLearningActor, ABC):
             observation: np.ndarray,
             action: int,
             new_qv: float) -> float:
-        raise R4Cexception('not implemented, is not used since DQNActor updates with a batch only')
+        """ not used since DQNActor updates with a batch only """
+        raise NotImplementedError
 
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
-        return self.model.backward(**training_data)
+        actor_metrics = self.model.backward(**training_data)
+        actor_metrics['observation'] = training_data['observation']
+        return actor_metrics
 
-    def _publish(
-            self,
-            batch: Dict[str,np.ndarray],
-            metrics: Dict[str,Any],
-    ) -> None:
+    def _publish(self, metrics:Dict[str,Any]) -> None:
         if self.tbwr:
-            for k,v in metrics.items():
-                if k != 'qvs':
-                    self.tbwr.add(value=v, tag=f'actor/{k}', step=self._upd_step)
+            if 'qvs' in metrics:
+                metrics.pop('qvs')
+            self._zepro.process(zeroes=metrics.pop('zeroes'), step=self.upd_step)
+            super()._publish(metrics)
 
     def save(self):
         self.model.save()

@@ -21,7 +21,7 @@ Actor is responsible for resetting the Envy after reaching terminal state, e.g. 
 ```TrainableActor``` uses experience received while playing to train its policy.  
 ```TrainableActor``` uses ```ExperienceMemory``` to store given experience.
 ```TrainableActor``` leaves to implement:
-- ```_get_action()```
+- ```get_action()```
 - ```_build_training_data()``` and ```_update()```
 - ```save()``` and ```load()```
 

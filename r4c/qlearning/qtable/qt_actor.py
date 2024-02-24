@@ -7,21 +7,19 @@ from r4c.qlearning.ql_actor import QLearningActor
 
 
 class QTable:
-    """
-    QTable stores QVs for observations.
+    """ QTable stores QVs for observations.
     Here implemented as a Dict {observation_hash: QVs}, where:
     - observation hash is a string,
-    - QVs are stored with numpy array.
-    """
+    - QVs are stored with numpy array. """
 
     def __init__(self, width:int):
         self.__width = width
         self.__table: Dict[str, np.ndarray] = {}  # {observation_hash: QVs}
         self.__keys: List[np.ndarray] = []
 
-    # baseline hash of np.ndarray
     @staticmethod
     def __hash(observation:np.ndarray) -> str:
+        """ baseline hash of np.ndarray """
         return str(observation)
 
     def __init_hash(self, ha:str):
@@ -52,26 +50,27 @@ class QTable:
         return s[:-1]
 
 
-# implements QLearningActor with QTable
 class QTableActor(QLearningActor):
+    """ implements QLearningActor with QTable """
 
     def __init__(self, update_rate:float, **kwargs):
-        QLearningActor.__init__(self, **kwargs)
+        super().__init__(**kwargs)
         self.update_rate = update_rate
         self.__qtable = QTable(self.envy.num_actions)
         self.logger.info('*** QTableActor *** initialized')
         self.logger.info(f'> update_rate: {self.update_rate}')
 
-    # returns QVs for given observation
     def _get_QVs(self, observation:np.ndarray) -> np.ndarray:
+        """ returns QVs for given observation """
         return self.__qtable.get_QVs(observation)
 
-    # updates QV and returns ~loss (TD Error)
     def _upd_QV(
             self,
             observation: np.ndarray,
             action: int,
-            new_qv: float) -> float:
+            new_qv: float,
+    ) -> float:
+        """ updates QV and returns ~loss (TD Error) """
 
         old_qv = self._get_QVs(observation)[action]
         diff = new_qv - old_qv # TD Error

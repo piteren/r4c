@@ -9,22 +9,10 @@ from r4c.policy_gradients.a2c.a2c_actor_module import A2CModule
 
 class A2CActor(PGActor):
 
-    def __init__(
-            self,
-            name: str=                              'A2CActor',
-            module_type: Optional[type(Module)]=    A2CModule,
-            **kwargs):
-        PGActor.__init__(
-            self,
-            name=           name,
-            module_type=    module_type,
-            **kwargs)
+    def __init__(self, module_type:Optional[type(Module)]=A2CModule, **kwargs):
+        super().__init__(module_type=module_type, **kwargs)
 
-    def _publish(
-            self,
-            batch: Dict[str,np.ndarray],
-            metrics: Dict[str,Any],
-    ) -> None:
+    def _publish(self, metrics:Dict[str,Any]) -> None:
         metrics.pop('value')
         metrics.pop('advantage')
-        super()._publish(batch=batch, metrics=metrics)
+        super()._publish(metrics)

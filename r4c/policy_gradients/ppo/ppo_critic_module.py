@@ -15,11 +15,9 @@ class PPOCriticModule(Module):
             hidden_width: int=  12,
             lay_norm=           False,
             seed=               121,
-            logger=             None,
-            loglevel=           20,
-    ):
+            **kwargs):
 
-        Module.__init__(self, logger=logger, loglevel=loglevel)
+        super().__init__(**kwargs)
 
         lay_shapeL = []
         next_in = observation_width

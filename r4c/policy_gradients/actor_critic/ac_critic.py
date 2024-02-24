@@ -17,7 +17,7 @@ class ACCritic(FiniTRCritic):
             motorch_point: Optional[POINT]=         None,
             **kwargs):
 
-        FiniTRCritic.__init__(self, **kwargs)
+        super().__init__(**kwargs)
 
         self.model = MOTorch(
             module_type=        module_type,
@@ -29,32 +29,39 @@ class ACCritic(FiniTRCritic):
             logger=             get_child(self.logger),
             **(motorch_point or {}))
 
-        self._upd_step = 0
-
         self.zepro = ZeroesProcessor(
             intervals=  (10, 50, 100),
             tag_pfx=    'critic_nane',
             tbwr=       self.actor.tbwr) if self.actor.tbwr else None
 
-    def get_qvs(self, observation:np.ndarray) -> np.ndarray:
+    def get_value(self, observation:np.ndarray) -> np.ndarray:
         return self.model(observation=observation)['qvs'].detach().cpu().numpy()
 
+    def build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
+        return {k: batch[k] for k in ['observation','action','next_observation_qvs','next_action_probs','reward']}
+
     def update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
-        self._upd_step += 1
-        return self.model.backward(
-            observation=            training_data['observation'],
-            action=                 training_data['action'],
-            next_observation_qvs=   training_data['next_observation_qvs'],
-            next_action_probs=      training_data['next_action_probs'],
-            reward=                 training_data['reward'])
+        return self.model.backward(**training_data)
 
     def publish(self, metrics:Dict[str,Any]):
 
         if self.actor.tbwr:
 
-            zeroes = metrics.pop('critic_zeroes')
-            self.zepro.process(zeroes=zeroes, step=self._upd_step)
-
             metrics.pop('critic_qvs')
+
+            zeroes = metrics.pop('critic_zeroes')
+            self.zepro.process(zeroes=zeroes, step=self.actor.upd_step)
+
             for k, v in metrics.items():
-                self.actor.tbwr.add(value=v, tag=f'critic/{k[7:]}', step=self._upd_step)
+                self.actor.tbwr.add(value=v, tag=f'critic/{k[7:]}', step=self.actor.upd_step)
+
+    def save(self):
+        self.model.save()
+
+    def load(self):
+        self.model.load()
+
+    def __str__(self) -> str:
+        nfo =  f'{super().__str__()}\n'
+        nfo += str(self.model)
+        return nfo

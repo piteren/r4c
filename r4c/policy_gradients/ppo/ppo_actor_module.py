@@ -20,11 +20,9 @@ class PPOActorModule(Module):
             hidden_width: int=  12,
             lay_norm=           False,
             seed=               121,
-            logger=             None,
-            loglevel=           20,
-    ):
+            **kwargs):
 
-        Module.__init__(self, logger=logger, loglevel=loglevel)
+        super().__init__(**kwargs)
 
         hidden_layers = [hidden_width] * n_hidden
         lay_shapeL = []

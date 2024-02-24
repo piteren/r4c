@@ -9,7 +9,7 @@ class MOTorch_PPO(MOTorch):
 
     def __init__(self, **kwargs):
 
-        MOTorch.__init__(self, **kwargs)
+        super().__init__(**kwargs)
 
         # INFO: for large PPO updates disables strange CUDA error
         # those backends turn on / off implementations of SDP (scaled dot product attention)
