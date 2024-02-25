@@ -25,12 +25,10 @@ class PGActorModule(Module):
             lay_shapeL.append((next_in,hidden_width))
             next_in = hidden_width
 
-        self.lay_norm = lay_norm
-
-        self.ln = torch.nn.LayerNorm(observation_width) if self.lay_norm else None # input layer norm
+        self.ln = torch.nn.LayerNorm(observation_width) if lay_norm else None # input layer norm
 
         self.linL = [LayDense(*shape) for shape in lay_shapeL]
-        self.lnL = [torch.nn.LayerNorm(shape[-1]) if self.lay_norm else None for shape in lay_shapeL]
+        self.lnL = [torch.nn.LayerNorm(shape[-1]) if lay_norm else None for shape in lay_shapeL]
 
         lix = 0
         for lin,ln in zip(self.linL, self.lnL):
@@ -46,14 +44,14 @@ class PGActorModule(Module):
     def forward(self, observation:TNS) -> DTNS:
 
         out = observation
-        if self.lay_norm:
+        if self.ln:
             out = self.ln(observation)
 
         zsL = []
         for lin,ln in zip(self.linL,self.lnL):
             out = lin(out)
             zsL.append(zeroes(out))
-            if self.lay_norm:
+            if ln:
                 out = ln(out)
 
         logits = self.logits(out)
@@ -63,7 +61,7 @@ class PGActorModule(Module):
             'logits':   logits,
             'probs':    dist.probs,
             'entropy':  dist.entropy().mean(),
-            'zeroes':   zsL}
+            'zeroes':   torch.cat(zsL).detach()}
 
     def loss(
             self,

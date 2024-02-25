@@ -24,19 +24,16 @@ class PPOActorModule(Module):
 
         super().__init__(**kwargs)
 
-        hidden_layers = [hidden_width] * n_hidden
         lay_shapeL = []
         next_in = observation_width
-        for hl in hidden_layers:
-            lay_shapeL.append((next_in,hl))
-            next_in = hl
+        for _ in range(n_hidden):
+            lay_shapeL.append((next_in,hidden_width))
+            next_in = hidden_width
 
-        self.lay_norm = lay_norm
-
-        self.ln = torch.nn.LayerNorm(observation_width) if self.lay_norm else None # input layer norm
+        self.ln = torch.nn.LayerNorm(observation_width) if lay_norm else None # input layer norm
 
         self.linL = [LayDense(*shape) for shape in lay_shapeL]
-        self.lnL = [torch.nn.LayerNorm(shape[-1]) if self.lay_norm else None for shape in lay_shapeL]
+        self.lnL = [torch.nn.LayerNorm(shape[-1]) if lay_norm else None for shape in lay_shapeL]
 
         lix = 0
         for lin,ln in zip(self.linL, self.lnL):
@@ -55,24 +52,24 @@ class PPOActorModule(Module):
     def forward(self, observation:TNS) -> DTNS:
 
         out = observation
-        if self.lay_norm:
+        if self.ln:
             out = self.ln(observation)
 
         zsL = []
         for lin,ln in zip(self.linL,self.lnL):
             out = lin(out)
             zsL.append(zeroes(out))
-            if self.lay_norm:
+            if ln:
                 out = ln(out)
 
         logits = self.logits(out)
         dist = torch.distributions.Categorical(logits=logits)
 
         return {
-            'logits':       logits,
-            'probs':        dist.probs,
-            'entropy':      dist.entropy().mean(),
-            'zeroes':       zsL}
+            'logits':   logits,
+            'probs':    dist.probs,
+            'entropy':  dist.entropy().mean(),
+            'zeroes':   torch.cat(zsL).detach()}
 
     def fwd_logprob(self, observation:TNS, action:TNS) -> DTNS:
         """ FWD
@@ -99,8 +96,8 @@ class PPOActorModule(Module):
         # stats
         with torch.no_grad():
             out.update({
-                'approx_kl':    ((ratio - 1) - logratio).mean(),
-                'clipfracs':    ((ratio - 1.0).abs() > self.clip_coef).float().mean()})
+                'approx_kl': ((ratio - 1) - logratio).mean(),
+                'clipfracs': ((ratio - 1.0).abs() > self.clip_coef).float().mean()})
 
         return out
 

@@ -73,7 +73,7 @@ class FiniTRCritic(TrainableCritic, ABC):
     """ FiniTRCritic is a TrainableCritic for FiniteActionsRLEnvy """
 
     def __init__(self, actor:FiniTRActor, **kwargs):
-        TrainableCritic.__init__(self, actor=actor, **kwargs)
+        super().__init__(actor=actor, **kwargs)
         self.actor = actor # just for typing
 
 
@@ -93,11 +93,13 @@ class MOTRCritic(TrainableCritic, ABC):
 
         self.model = model_type(
             module_type=        module_type,
+            save_topdir=        self.actor.save_dir,
             **self._critic_motorch_point(),
             **(motorch_point or {}))
 
         self._zepro = ZeroesProcessor(
             intervals=  (10, 50, 100),
+            tag_pfx=    'critic_nane',
             tbwr=       self.actor.tbwr) if self.actor.tbwr else None
 
     def _critic_motorch_point(self) -> POINT:
@@ -120,7 +122,8 @@ class MOTRCritic(TrainableCritic, ABC):
 
     def publish(self, metrics:Dict[str,Any]) -> None:
         if self.actor.tbwr:
-            metrics.pop('critic_value')
+            if 'critic_value' in metrics:
+                metrics.pop('critic_value')
             self._zepro.process(zeroes=metrics.pop('critic_zeroes'), step=self.actor.upd_step)
             super().publish(metrics={k[7:]: metrics[k] for k in metrics})
 

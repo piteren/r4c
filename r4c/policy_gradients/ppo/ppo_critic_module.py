@@ -53,7 +53,7 @@ class PPOCriticModule(Module):
             zsL.append(zeroes(out))
             if self.lay_norm:
                 out = ln(out)
-        return {'value':self.value(out), 'zeroes':zsL}
+        return {'value':self.value(out), 'zeroes':torch.cat(zsL).detach()}
 
     def loss(
             self,

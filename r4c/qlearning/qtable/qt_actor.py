@@ -1,6 +1,6 @@
 import numpy as np
 from pypaq.lipytools.files import prep_folder, w_pickle, r_pickle
-from typing import Dict, List
+from typing import Dict, List, Any, Union
 
 from r4c.qlearning.ql_actor import QLearningActor
 
@@ -32,10 +32,12 @@ class QTable:
             self.__keys.append(observation)
         return self.__table[ha]
 
-    def put_QV(self,
+    def put_QV(
+            self,
             observation: np.ndarray,
             action: int,
-            new_qv: float):
+            new_qv: np.ndarray,
+    ):
         ha = QTable.__hash(observation)
         if ha not in self.__table:
             self.__init_hash(ha)
@@ -56,35 +58,45 @@ class QTableActor(QLearningActor):
     def __init__(self, update_rate:float, **kwargs):
         super().__init__(**kwargs)
         self.update_rate = update_rate
-        self.__qtable = QTable(self.envy.num_actions)
+        self.qtable = QTable(self.envy.num_actions)
         self.logger.info('*** QTableActor *** initialized')
         self.logger.info(f'> update_rate: {self.update_rate}')
 
     def _get_QVs(self, observation:np.ndarray) -> np.ndarray:
         """ returns QVs for given observation """
-        return self.__qtable.get_QVs(observation)
+        return self.qtable.get_QVs(observation)
 
     def _upd_QV(
             self,
             observation: np.ndarray,
             action: int,
-            new_qv: float,
+            new_qv: np.ndarray,
     ) -> float:
         """ updates QV and returns ~loss (TD Error) """
-
         old_qv = self._get_QVs(observation)[action]
         diff = new_qv - old_qv # TD Error
-        self.__qtable.put_QV(
+        self.qtable.put_QV(
             observation=    observation,
             action=         action,
             new_qv=         old_qv + self.update_rate * diff)
+        return abs(float(diff))
 
-        return abs(diff)
+    def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
+        """ updates QV """
+        actor_metrics = super()._update(training_data)
+        loss = 0.0
+        for obs, act, nqv in zip(training_data['observation'], training_data['action'], training_data['new_qv']):
+            loss += self._upd_QV(
+                observation=    obs,
+                action=         act,
+                new_qv=         nqv)
+        actor_metrics['loss'] = loss
+        return actor_metrics
 
     def save(self):
         save_data = {
             'update_rate': self.update_rate,
-            'qtable':      self.__qtable}
+            'qtable':      self.qtable}
         folder = self.save_dir
         prep_folder(folder)
         w_pickle(save_data, f'{folder}/qt.data')
@@ -92,7 +104,9 @@ class QTableActor(QLearningActor):
     def load(self):
         saved_data = r_pickle(f'{self.save_dir}/qt.data')
         self.update_rate = saved_data['update_rate']
-        self.__qtable = saved_data['qtable']
+        self.qtable = saved_data['qtable']
 
     def __str__(self):
-        return f'QTableActor, QTable:\n{self.__qtable.__str__()}'
+        nfo = f'{super().__str__()}\n'
+        nfo += f'> update_rate: {self.update_rate}'
+        return nfo

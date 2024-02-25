@@ -59,7 +59,7 @@ class ACCriticModule(Module):
 
         qvs = self.qvs(out)
 
-        return {'qvs':qvs, 'zeroes':zsL}
+        return {'qvs':qvs, 'zeroes':torch.cat(zsL).detach()}
 
     def loss(
             self,

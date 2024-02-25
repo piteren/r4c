@@ -9,6 +9,11 @@ from r4c.policy_gradients.actor_critic.ac_critic import ACCritic
 
 class ACActor(PGActor):
 
+    # since _build_training_data() prepares data for both Actor and Critic,
+    # keys below specify which part of the data is or an Actor
+    # this info is used by _update(), which updates also both Actor and Critic
+    ACTOR_TR_DATA_KEYS = ['observation', 'action', 'dreturn']
+
     def __init__(self, critic_type:type(TrainableCritic)=ACCritic, **kwargs):
 
         # split kwargs assuming that Critic kwargs start with 'critic_'
@@ -21,7 +26,7 @@ class ACActor(PGActor):
         self.critic = critic_type(actor=self, **c_kwargs)
 
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
-        """ prepares actor and critic data """
+        """ prepares Actor and Critic data """
 
         dk = ['observation','action','reward']
         training_data = {k: batch[k] for k in dk}
@@ -43,7 +48,7 @@ class ACActor(PGActor):
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
         """ updates both Actor and Critic """
 
-        actor_training_data = {k: training_data[k] for k in ['observation','action','dreturn']}
+        actor_training_data = {k: training_data[k] for k in self.ACTOR_TR_DATA_KEYS}
         actor_metrics = super()._update(actor_training_data)
 
         critic_training_data = self.critic.build_training_data(batch=training_data)
@@ -61,3 +66,11 @@ class ACActor(PGActor):
             metrics.pop(k)
         super()._publish(metrics)
         self.critic.publish(critic_metrics)
+
+    def save(self):
+        super().save()
+        self.critic.save()
+
+    def load(self):
+        super().load()
+        self.critic.load()

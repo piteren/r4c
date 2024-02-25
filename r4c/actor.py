@@ -364,8 +364,8 @@ class TrainableActor(Actor, ABC):
 
     def __str__(self) -> str:
         nfo =  f'{super().__str__()}\n'
-        nfo += f'> discount:  {self.discount}\n'
-        nfo += f'> do_zscore: {self.do_zscore}\n'
+        nfo += f'> discount: {self.discount}\n'
+        nfo += f'> do_zscore: {self.do_zscore}'
         return nfo
 
 
@@ -428,11 +428,13 @@ class MOTRActor(TrainableActor, ABC):
 
         self.model = model_type(
             module_type=        module_type,
+            save_topdir=        self.save_topdir,
             **self._actor_motorch_point(),
             **(motorch_point or {}))
 
         self._zepro = ZeroesProcessor(
             intervals=  (10, 50, 100),
+            tag_pfx=    'actor_nane',
             tbwr=       self.tbwr) if self.tbwr else None
 
     def _actor_motorch_point(self) -> POINT:
@@ -446,8 +448,8 @@ class MOTRActor(TrainableActor, ABC):
 
     def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
         """ update with NN backprop """
-        actor_metrics = self.model.backward(**training_data)
-        actor_metrics['observation'] = training_data['observation']
+        actor_metrics = super()._update(training_data)
+        actor_metrics.update(self.model.backward(**training_data))
         return actor_metrics
 
     def _publish(self, metrics:Dict[str,Any]) -> None:

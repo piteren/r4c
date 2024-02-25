@@ -1,40 +1,35 @@
 import torch
 from torchness.types import TNS, DTNS
 from torchness.motorch import Module
-from torchness.layers import LayDense
+from torchness.layers import LayDense, zeroes
 
 
-# Deep QNetwork Model
-class DQNModel(Module):
-    """
-    Since in QLearning number of observations may be finite (in QTable is),
-    observations received by model may be of int dtype.
-    Those are preventively converted to float in froward() and loss().
-    """
+class DQNModule(Module):
+    """ Deep QNetwork Module """
 
     def __init__(
             self,
-            num_actions: int=   4,
-            observation_width=  4,
+            observation_width: int,
+            num_actions: int,
             n_hidden: int=      2,
             hidden_width: int=  12,
+            lay_norm=           False,
             use_huber: bool=    True, # MSE / Huber loss
             seed=               121,
             **kwargs):
 
         super().__init__(**kwargs)
 
-        hidden_layers = [hidden_width] * n_hidden
         lay_shapeL = []
         next_in = observation_width
-        for hl in hidden_layers:
-            lay_shapeL.append((next_in,hl))
-            next_in = hl
+        for _ in range(n_hidden):
+            lay_shapeL.append((next_in,hidden_width))
+            next_in = hidden_width
 
-        self.ln = torch.nn.LayerNorm(observation_width) # input layer norm
+        self.ln = torch.nn.LayerNorm(observation_width) if lay_norm else None # input layer norm
 
         self.linL = [LayDense(*shape) for shape in lay_shapeL]
-        self.lnL = [torch.nn.LayerNorm(shape[-1]) for shape in lay_shapeL]
+        self.lnL = [torch.nn.LayerNorm(shape[-1]) if lay_norm else None for shape in lay_shapeL]
 
         lix = 0
         for lin,ln in zip(self.linL, self.lnL):
@@ -51,11 +46,21 @@ class DQNModel(Module):
         self.loss_fn = loss_class(reduction='none')
 
     def forward(self, observation:TNS) -> DTNS:
-        out = self.ln(observation.to(torch.float32)) # + safety dtype convert
+
+        out = observation
+        if self.ln:
+            out = self.ln(observation)
+
+        zsL = []
         for lin,ln in zip(self.linL,self.lnL):
             out = lin(out)
-            out = ln(out)
-        return {'qvs': self.logits(out)}
+            zsL.append(zeroes(out))
+            if ln:
+                out = ln(out)
+
+        return {
+            'qvs':      self.logits(out),
+            'zeroes':   torch.cat(zsL).detach()}
 
     def loss(
             self,

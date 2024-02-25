@@ -20,18 +20,9 @@ class QLearningActor(FiniTRActor, ABC):
         return np.asarray([self._get_QVs(o) for o in observation])
 
     def get_action(self, observation:np.ndarray) -> Dict[str,NUM]:
-        """ returns action based on QVs """
+        """ returns action based on QVs -> action with a max QV """
         qvs = self._get_QVs(observation)
         return {'action': int(np.argmax(qvs))}
-
-    @abstractmethod
-    def _upd_QV(
-            self,
-            observation: np.ndarray,
-            action: int,
-            new_qv: float) -> float:
-        """ updates QV for given observation and action, returns loss (TD Error - Temporal Difference Error?) """
-        pass
 
     def _build_training_data(self, batch:Dict[str,np.ndarray]) -> Dict[str,np.ndarray]:
         """ extracts from a batch + adds new QV from Bellman Equation """
@@ -47,18 +38,3 @@ class QLearningActor(FiniTRActor, ABC):
         training_data['new_qv'] = np.asarray(new_qv)
 
         return training_data
-
-    def _update(self, training_data:Dict[str,np.ndarray]) -> Dict[str,Any]:
-        """ updates QV """
-        loss = 0.0
-        for obs, act, nqv in zip(training_data['observation'], training_data['action'], training_data['new_qv']):
-            loss += self._upd_QV(
-                observation=    obs,
-                action=         act,
-                new_qv=         nqv)
-        return {'loss': loss}
-
-    def __str__(self):
-        nfo = f'{super().__str__()}\n'
-        nfo += f'> discount: {self.discount}'
-        return nfo

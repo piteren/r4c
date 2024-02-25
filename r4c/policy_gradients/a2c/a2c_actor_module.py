@@ -5,7 +5,6 @@ from torchness.layers import LayDense, zeroes
 from typing import Optional
 
 
-
 class A2CModule(Module):
 
     def __init__(
@@ -22,20 +21,17 @@ class A2CModule(Module):
 
         super().__init__(**kwargs)
 
-        hidden_layers = [hidden_width] * n_hidden
         lay_shapeL = []
         next_in = observation_width
-        for hl in hidden_layers:
-            lay_shapeL.append((next_in,hl))
-            next_in = hl
+        for _ in range(n_hidden):
+            lay_shapeL.append((next_in,hidden_width))
+            next_in = hidden_width
 
-        self.lay_norm = lay_norm
-
-        self.ln = torch.nn.LayerNorm(observation_width) if self.lay_norm else None # input layer norm
+        self.ln = torch.nn.LayerNorm(observation_width) if lay_norm else None # input layer norm
 
         # Actor (or Actor+Critic) tower layers
         self.linL = [LayDense(*shape) for shape in lay_shapeL]
-        self.lnL = [torch.nn.LayerNorm(shape[-1]) if self.lay_norm else None for shape in lay_shapeL]
+        self.lnL = [torch.nn.LayerNorm(shape[-1]) if lay_norm else None for shape in lay_shapeL]
         lix = 0
         for lin,ln in zip(self.linL, self.lnL):
             self.add_module(f'lay_lin{lix}', lin)
@@ -44,11 +40,11 @@ class A2CModule(Module):
 
         # Critic tower layers
         self.linL_critic_tower = [LayDense(*shape) for shape in lay_shapeL] if two_towers else []
-        self.lnL_critic_tower = [torch.nn.LayerNorm(shape[-1]) for shape in lay_shapeL] if two_towers else []
+        self.lnL_critic_tower = [torch.nn.LayerNorm(shape[-1]) if lay_norm else None for shape in lay_shapeL] if two_towers else []
         lix = 0
         for lin,ln in zip(self.linL_critic_tower, self.lnL_critic_tower):
             self.add_module(f'lay_lin_tower{lix}', lin)
-            self.add_module(f'lay_ln_tower{lix}', ln)
+            if ln: self.add_module(f'lay_ln_tower{lix}', ln)
             lix += 1
 
         # Critic value
@@ -69,7 +65,7 @@ class A2CModule(Module):
     def forward(self, observation:TNS) -> DTNS:
 
         inp = observation
-        if self.lay_norm:
+        if self.ln:
             inp = self.ln(observation)
 
         zsL = []
@@ -77,7 +73,8 @@ class A2CModule(Module):
         for lin,ln in zip(self.linL,self.lnL):
             out = lin(out)
             zsL.append(zeroes(out))
-            if self.lay_norm: out = ln(out)
+            if ln:
+                out = ln(out)
 
         out_tower = out
         if self.linL_critic_tower:
@@ -85,7 +82,8 @@ class A2CModule(Module):
             for lin,ln in zip(self.linL_critic_tower, self.lnL_critic_tower):
                 out_tower = lin(out_tower)
                 zsL.append(zeroes(out_tower))
-                if self.lay_norm: out_tower = ln(out_tower)
+                if ln:
+                    out_tower = ln(out_tower)
         value = self.value(out_tower)
         value = torch.reshape(value, (value.shape[:-1])) # remove last dim
 
@@ -96,7 +94,7 @@ class A2CModule(Module):
             'value':    value,
             'logits':   logits,
             'probs':    probs,
-            'zeroes':   zsL}
+            'zeroes':   torch.cat(zsL).detach()}
 
     def loss(
             self,
