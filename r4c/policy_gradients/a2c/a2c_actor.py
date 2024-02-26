@@ -1,4 +1,3 @@
-import numpy as np
 from torchness.motorch import Module
 from typing import Optional, Dict, Any
 

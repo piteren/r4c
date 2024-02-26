@@ -125,7 +125,7 @@ class MOTRCritic(TrainableCritic, ABC):
             if 'critic_value' in metrics:
                 metrics.pop('critic_value')
             self._zepro.process(zeroes=metrics.pop('critic_zeroes'), step=self.actor.upd_step)
-            super().publish(metrics={k[7:]: metrics[k] for k in metrics})
+            super().publish(metrics)
 
     def save(self):
         self.model.save()

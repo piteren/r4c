@@ -10,7 +10,7 @@ from r4c.policy_gradients.actor_critic.ac_critic import ACCritic
 class ACActor(PGActor):
 
     # since _build_training_data() prepares data for both Actor and Critic,
-    # keys below specify which part of the data is or an Actor
+    # keys below specify which part of the data is for an Actor
     # this info is used by _update(), which updates also both Actor and Critic
     ACTOR_TR_DATA_KEYS = ['observation', 'action', 'dreturn']
 

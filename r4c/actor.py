@@ -288,7 +288,8 @@ class TrainableActor(Actor, ABC):
 
                     if avg_won == 1:
                         succeeded_row_curr += 1
-                        if succeeded_row_curr > succeeded_row_max: succeeded_row_max = succeeded_row_curr
+                        if succeeded_row_curr > succeeded_row_max:
+                            succeeded_row_max = succeeded_row_curr
                     else:
                         succeeded_row_curr = 0
 

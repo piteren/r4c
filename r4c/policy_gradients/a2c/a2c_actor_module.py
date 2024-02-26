@@ -6,6 +6,8 @@ from typing import Optional
 
 
 class A2CModule(Module):
+    """ A2CModule
+    here Actor (policy) and Critic (value) are integrated into one module """
 
     def __init__(
             self,
@@ -47,16 +49,16 @@ class A2CModule(Module):
             if ln: self.add_module(f'lay_ln_tower{lix}', ln)
             lix += 1
 
-        # Critic value
-        self.value = LayDense(
-            in_features=    next_in,
-            out_features=   1,
-            activation=     None)
-
         # Actor policy logits
         self.logits = LayDense(
             in_features=    next_in,
             out_features=   num_actions,
+            activation=     None)
+
+        # Critic value
+        self.value = LayDense(
+            in_features=    next_in,
+            out_features=   1,
             activation=     None)
 
         self.clamp_advantage = clamp_advantage
@@ -88,12 +90,13 @@ class A2CModule(Module):
         value = torch.reshape(value, (value.shape[:-1])) # remove last dim
 
         logits = self.logits(out)
-        probs = torch.nn.functional.softmax(input=logits, dim=-1)
+        dist = torch.distributions.Categorical(logits=logits)
 
         return {
             'value':    value,
             'logits':   logits,
-            'probs':    probs,
+            'probs':    dist.probs,
+            'entropy':  dist.entropy().mean(),
             'zeroes':   torch.cat(zsL).detach()}
 
     def loss(
@@ -131,5 +134,4 @@ class A2CModule(Module):
             'loss_actor':   loss_actor,
             'loss_critic':  loss_critic,
             'loss':         loss_actor + loss_critic})
-
         return out
