@@ -70,7 +70,7 @@ class Actor(ABC):
 
     @property
     def observation_width(self) -> int:
-        return self._observation_vector(self.envy.get_observation()).shape[-1]
+        return self._observation_vector(self.envy.observation).shape[-1]
 
     def __str__(self):
         nfo =  f'{self.__class__.__name__} (Actor) : {self.name}\n'
@@ -129,23 +129,25 @@ class TrainableActor(Actor, ABC):
         """ returns 100% random action, not based on policy """
         pass
 
-    def _move(self) -> Dict[str,NUM]:
+    def _move(self, envy:Optional[RLEnvy]=None) -> Dict[str,NUM]:
         """ executes single move of Actor on Envy """
 
-        # eventually (safety) reset Envy in case it reached terminal state and has not been reset by the user
-        if self.envy.is_terminal():
-            self.envy.reset()
+        envy = envy or self.envy
 
-        observation = self.envy.get_observation()
+        # eventually (safety) reset Envy in case it reached terminal state and has not been reset by the user
+        if envy.is_terminal():
+            envy.reset()
+
+        observation = envy.observation
         observation_vector = self._observation_vector(observation)
 
         ad = self.get_action(observation=observation_vector)
         if self._is_training and np.random.rand() < self.exploration:
             ad['action'] = self._get_random_action()
 
-        reward = self.envy.run(ad['action'])
+        reward = envy.run(ad['action'])
 
-        next_observation = self.envy.get_observation()
+        next_observation = envy.observation
         next_observation_vector = self._observation_vector(next_observation)
 
         md = {
@@ -168,8 +170,10 @@ class TrainableActor(Actor, ABC):
             'terminal':            List[bool],
             'won'                  List[bool]} """
 
+        envy = self.envy.build_renderable() if picture else self.envy
+
         if steps is None:
-            steps = self.envy.max_steps
+            steps = envy.max_steps
 
         if steps is None:
             raise R4Cexception('Actor cannot play on Envy where max_steps is None and given steps is None')
@@ -177,17 +181,14 @@ class TrainableActor(Actor, ABC):
         ed = {k: [] for k in ['action','terminal','won']}
         while len(ed['action']) < steps:
 
-            md = self._move()
+            md = self._move(envy=envy)
             for k in md:
                 if k not in ed:
                     ed[k] = []
                 ed[k].append(md[k])
 
-            ed['terminal'].append(self.envy.is_terminal())
-            ed['won'].append(self.envy.has_won())
-
-            if picture:
-                self.envy.render()
+            ed['terminal'].append(envy.is_terminal())
+            ed['won'].append(envy.has_won())
 
             if ed['terminal'][-1] and break_terminal:
                 break
@@ -213,7 +214,7 @@ class TrainableActor(Actor, ABC):
             test_episodes: Optional[int]=   None,
             test_max_steps: Optional[int]=  None,   # max number of episode steps while testing
             break_ntests: Optional[int]=    None,   # breaks training after all test episodes succeeded N times in a row
-            picture: bool=                  False,  # plots and renders while testing
+            picture=                        False,  # for True: plots are drawn when given and renderable test is done
     ) -> dict:
         """ generic RL training procedure, returns dict with some training stats """
 

@@ -80,9 +80,7 @@ def plot_reward(
     names = ['reward']
 
     if terminal is not None:
-        da_ret = []
-        for rs in split_reward(reward, terminal):
-            da_ret += da_return(reward=rs, discount=discount)
+        da_ret = np.concatenate([da_return(reward=rs, discount=discount) for rs in split_reward(reward, terminal)])
         da_ret_znorm = zscore_norm(da_ret)
 
         ys += [da_ret, da_ret_znorm]

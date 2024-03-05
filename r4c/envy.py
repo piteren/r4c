@@ -22,14 +22,22 @@ class Envy(ABC):
         self.logger.info(f'*** {self.__class__.__name__} (Envy) *** initializes..')
         self.seed = seed
 
-    @abstractmethod
-    def get_observation(self) -> object:
+        self.state = None
+        self.reset()
+
+    @property
+    def observation(self) -> object:
         """ returns observation of current state """
+        return self.state
+
+    @abstractmethod
+    def sample_action(self) -> object:
+        """ returns random action """
         pass
 
     @abstractmethod
     def run(self, action:object) -> object:
-        """ Envy plays (runs) an action, goes to new state, may return something """
+        """ Envy plays (runs) an action, goes to new state -> should update self.state, may return something """
         pass
 
     @abstractmethod
@@ -42,14 +50,15 @@ class Envy(ABC):
         """ Envy is in terminal state now + user won episode """
         pass
 
-    def reset(self):
-        """ resets Envy to initial state """
-        self.reset_with_seed(seed=self.seed)
+    def reset(self) -> object:
+        """ resets Envy to initial state, returns state """
+        self.state = self.reset_with_seed(seed=self.seed)
         self.seed += 1
+        return self.state
 
     @abstractmethod
-    def reset_with_seed(self, seed:int):
-        """ resets Envy to initial state with given seed """
+    def reset_with_seed(self, seed:int) -> object:
+        """ resets Envy to initial state with given seed, returns state """
         pass
 
     @property
@@ -64,15 +73,16 @@ class Envy(ABC):
 
 
 class RLEnvy(Envy, ABC):
-    """ adds to Envy methods needed by base RL algorithms (used by Actor or Trainer) """
+    """ adds some RL methods to Envy (used by Actor or Trainer) """
+
+    @abstractmethod
+    def build_renderable(self) -> "RLEnvy":
+        """ returns a duplicate of self that is renderable """
+        pass
 
     def run(self, action:NUM) -> float:
         """ plays action, goes to new state, returns reward
         RLEnvy returns reward after each step (run) """
-        pass
-
-    def render(self):
-        """ Envy current state rendering, for debug, preview etc. """
         pass
 
     def observation_vector(self, observation:object) -> np.ndarray:
