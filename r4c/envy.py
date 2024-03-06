@@ -42,12 +42,13 @@ class Envy(ABC):
 
     @abstractmethod
     def is_terminal(self) -> bool:
-        """ Envy is in terminal state now"""
+        """ Envy is in terminal state now """
         pass
 
     @abstractmethod
     def has_won(self) -> bool:
-        """ Envy is in terminal state now + user won episode """
+        """ Envy is in terminal state now + user won episode,
+        this state may be never True for some Envies. """
         pass
 
     def reset(self) -> object:
