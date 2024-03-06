@@ -74,7 +74,7 @@ class Envy(ABC):
 
 
 class RLEnvy(Envy, ABC):
-    """ adds some RL methods to Envy (used by Actor or Trainer) """
+    """ RLEnvy - adds some RL methods to Envy """
 
     @abstractmethod
     def build_renderable(self) -> "RLEnvy":
@@ -94,8 +94,8 @@ class RLEnvy(Envy, ABC):
         raise R4Cexception('RLEnvy not implemented observation_vector()')
 
 
-class FiniteActionsRLEnvy(RLEnvy):
-    """ interface of RL Environment with finite actions number """
+class FiniteActionsRLEnvy(RLEnvy, ABC):
+    """ FiniteActionsRLEnvy - RLEnvy with finite actions space """
 
     @abstractmethod
     def get_valid_actions(self) -> List[object]:
