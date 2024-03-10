@@ -2,16 +2,15 @@ import torch
 from torchness.motorch import Module
 from torchness.types import TNS, DTNS
 from torchness.layers import LayDense, zeroes
-from torchness.base_elements import select_with_indices
 
 
-class PPOActorModule(Module):
-    """ baseline PPO Actor Module """
+class PPOCASActorModule(Module):
+    """ baseline PPO for continuous action space (CAS) Actor Module """
 
     def __init__(
             self,
             observation_width: int,
-            num_actions: int,
+            action_width: int,
             minibatch_num: int,
             n_epochs_ppo: int,
             clip_coef: float,
@@ -41,10 +40,12 @@ class PPOActorModule(Module):
             if ln: self.add_module(f'lay_ln{lix}', ln)
             lix += 1
 
-        self.logits = LayDense(
+        self.action_mean = LayDense(
             in_features=    next_in,
-            out_features=   num_actions,
+            out_features=   action_width,
             activation=     None)
+
+        self.action_logstd = torch.nn.Parameter(torch.zeros(action_width))
 
         self.clip_coef = clip_coef
         self.entropy_coef = entropy_coef
@@ -62,21 +63,28 @@ class PPOActorModule(Module):
             if ln:
                 out = ln(out)
 
-        logits = self.logits(out)
-        dist = torch.distributions.Categorical(logits=logits)
+        action_mean = self.action_mean(out)
+        action_logstd = self.action_logstd.expand(action_mean.size())
+        action_std = torch.exp(action_logstd)
+
+        dist = torch.distributions.normal.Normal(action_mean, action_std)
+
+        action = dist.sample()
+        logprob = dist.log_prob(action).sum(-1)
+        entropy = dist.entropy().sum(-1)
 
         return {
-            'logits':   logits,
-            'probs':    dist.probs,
-            'entropy':  dist.entropy(),
+            'dist':     dist,
+            'action':   action,
+            'logprob':  logprob,
+            'entropy':  entropy,
             'zeroes':   torch.cat(zsL).detach()}
 
     def fwd_logprob(self, observation:TNS, action:TNS) -> DTNS:
         """ FWD
-        + preparation of logprob (ln(prob) of selected move) """
+        + preparation of logprob of given action) """
         out = self(observation)
-        prob_move = select_with_indices(source=out['probs'], indices=action)
-        out['logprob'] = torch.log(prob_move)
+        out['logprob'] = out['dist'].log_prob(action).sum(-1)
         return out
 
     def fwd_logprob_ratio(self, observation:TNS, action:TNS, old_logprob:TNS) -> DTNS:
@@ -118,10 +126,13 @@ class PPOActorModule(Module):
         out = self.fwd_logprob_ratio(observation=observation, action=action, old_logprob=logprob)
 
         loss_actor = self.loss_actor(advantage=advantage, ratio=out['ratio'])
+        #print('loss_actor:',loss_actor)
         loss_actor = torch.mean(loss_actor)
+        #print('loss_actor mean:', loss_actor)
 
         entropy = torch.mean(out['entropy'])
         loss_entropy_factor = self.entropy_coef * entropy
+        #print('loss_entropy_factor:', loss_entropy_factor)
 
         loss = loss_actor - loss_entropy_factor
 

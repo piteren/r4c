@@ -1,16 +1,17 @@
 import numpy as np
 from pypaq.pytypes import NUM
 from torchness.motorch import MOTorch, Module
-from typing import Dict, Any
+from typing import Dict
 
 from r4c.critic import TrainableCritic
-from r4c.policy_gradients.actor_critic.ac_actor import ACActor
+from r4c.policy_gradients.pg_actor import PGActor
+from r4c.policy_gradients.actor_critic.ac_actor import AbstrACActor
 from r4c.policy_gradients.ppo.ppo_actor_motorch import MOTorch_PPO
 from r4c.policy_gradients.ppo.ppo_actor_module import PPOActorModule
 from r4c.policy_gradients.ppo.ppo_critic import PPOCritic
 
 
-class PPOActor(ACActor):
+class PPOActor(AbstrACActor, PGActor):
 
     ACTOR_TR_DATA_KEYS = ['observation', 'action', 'advantage', 'logprob']
 

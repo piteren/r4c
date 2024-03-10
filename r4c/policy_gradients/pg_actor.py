@@ -8,7 +8,7 @@ from r4c.policy_gradients.pg_actor_module import PGActorModule
 
 
 class PGActor(ProbTRActor, MOTRActor):
-    """ Policy Gradient MOTRActor """
+    """ PGActor - Policy Gradient Actor """
 
     def __init__(self, module_type:type(Module)=PGActorModule, **kwargs):
         super().__init__(module_type=module_type, **kwargs)

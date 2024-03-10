@@ -66,9 +66,10 @@ class MOTorch_PPO(MOTorch):
 
         ### merge res
 
-        res_prep = {
-            'probs':    torch.cat(res['probs'], dim=0),
-            'zeroes':   res['zeroes']}
+        res_prep = {'zeroes': res['zeroes']}
+
+        if 'probs' in res:
+            res_prep['probs'] = torch.cat(res['probs'], dim=0)
 
         for k in [
             'entropy',

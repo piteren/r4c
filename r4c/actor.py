@@ -62,6 +62,9 @@ class Actor(ABC):
         returns a dict with some data like action, probs, logprob, value .. """
         pass
 
+    def get_random_action(self) -> NUM:
+        return self.envy.sample_action()
+
     @abstractmethod
     def save(self): pass
 
@@ -124,11 +127,6 @@ class TrainableActor(Actor, ABC):
 
         np.random.seed(self.seed)
 
-    @abstractmethod
-    def _get_random_action(self) -> NUM:
-        """ returns 100% random action, not based on policy """
-        pass
-
     def _move(self, envy:Optional[RLEnvy]=None) -> Dict[str,NUM]:
         """ executes single move of Actor on Envy """
 
@@ -143,7 +141,7 @@ class TrainableActor(Actor, ABC):
 
         ad = self.get_action(observation=observation_vector)
         if self._is_training and np.random.rand() < self.exploration:
-            ad['action'] = self._get_random_action()
+            ad['action'] = self.get_random_action()
 
         reward = envy.run(ad['action'])
 
@@ -378,14 +376,16 @@ class FiniTRActor(TrainableActor, ABC):
         super().__init__(envy=envy, **kwargs)
         self.envy = envy  # to update the type (for pycharm)
 
-    def _get_random_action(self) -> NUM:
-        return int(np.random.choice(self.envy.num_actions))
+    def __str__(self) -> str:
+        nfo = f'{super().__str__()}\n'
+        nfo += f'> num_actions: {self.envy.num_actions}'
+        return nfo
 
 
 class ProbTRActor(FiniTRActor, ABC):
-    """ ProbTRActor is a Probabilistic FiniTRActor, implements:
-    - sample_PL - sampling probability while playing
-    - sample_TR - sampling probability while training """
+    """ ProbTRActor is a FiniTRActor that assigns probability for each action, implements:
+    - sample_PL - sampling probability VS argmax <- while playing
+    - sample_TR - sampling probability VS argmax <- while training """
 
     def __init__(self, sample_PL:float, sample_TR:float, **kwargs):
         super().__init__(**kwargs)
@@ -414,6 +414,12 @@ class ProbTRActor(FiniTRActor, ABC):
                 self.tbwr.add(value=pm[k], tag=f'actor/{k}', step=self.upd_step)
 
             super()._publish(metrics)
+
+    def __str__(self) -> str:
+        nfo = f'{super().__str__()}\n'
+        nfo += f'> sample_PL: {self.sample_PL}\n'
+        nfo += f'> sample_TR: {self.sample_TR}'
+        return nfo
 
 
 class MOTRActor(TrainableActor, ABC):

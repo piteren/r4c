@@ -31,12 +31,12 @@ class Envy(ABC):
         return self.state
 
     @abstractmethod
-    def sample_action(self) -> object:
+    def sample_action(self) -> NUM:
         """ returns random action """
         pass
 
     @abstractmethod
-    def run(self, action:object) -> object:
+    def run(self, action:NUM) -> object:
         """ Envy plays (runs) an action, goes to new state -> should update self.state, may return something """
         pass
 
@@ -95,7 +95,7 @@ class RLEnvy(Envy, ABC):
 
 
 class FiniteActionsRLEnvy(RLEnvy, ABC):
-    """ FiniteActionsRLEnvy - RLEnvy with finite actions space """
+    """ FiniteActionsRLEnvy - RLEnvy with finite action space """
 
     @abstractmethod
     def get_valid_actions(self) -> List[object]:
@@ -110,4 +110,19 @@ class FiniteActionsRLEnvy(RLEnvy, ABC):
     def __str__(self):
         nfo =  f'{super().__str__()}\n'
         nfo += f'> num_actions: {self.num_actions}'
+        return nfo
+
+
+class CASRLEnvy(RLEnvy, ABC):
+    """ CASRLEnvy - RLEnvy with continuous action space """
+
+    @property
+    @abstractmethod
+    def action_width(self) -> int:
+        """ returns width of action """
+        pass
+
+    def __str__(self):
+        nfo =  f'{super().__str__()}\n'
+        nfo += f'> action_width: {self.action_width}'
         return nfo
