@@ -1,7 +1,8 @@
+'<!--SKIP_FIX-->'
 ## R4C - Reinforcement Framework
 
-some Reinforcement algorithms implementation, PyTorch based
+Some reinforcement algorithms implemented using PyTorch
 
 ---
 
-If you got any questions or need any support, please contact me:  me@piotniewinski.com
+If you have any questions or need support, please contact me: me@piotniewinski.com

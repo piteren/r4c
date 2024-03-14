@@ -1,3 +1,4 @@
+'<!--SKIP_FIX-->'
 ## r4c - base classes
 
 Envy and Actor are base r4c classes.
@@ -9,18 +10,18 @@ Envy and Actor are base r4c classes.
 ### Envy
 
 ##### reset
-Actor is responsible for resetting the Envy after reaching terminal state, e.g. before calling ```run()```
+The Actor is responsible for resetting the Envy after it reaches a terminal state, e.g., before calling ```run()```.
 
 
 ### Actor
 
-```Actor``` has its policy, which is used to make an action for given observation.
+The ```Actor``` has its policy, which is used to make an action based on a given observation.
 
 ### TrainableActor(Actor)
 
-```TrainableActor``` uses experience received while playing to train its policy.  
-```TrainableActor``` uses ```ExperienceMemory``` to store given experience.
-```TrainableActor``` leaves to implement:
+The ```TrainableActor``` uses the experience gained while playing to train its policy.  
+The ```TrainableActor``` uses ```ExperienceMemory``` to store the experience.
+The ```TrainableActor``` needs to implement:
 - ```get_action()```
 - ```_build_training_data()``` and ```_update()```
 - ```save()``` and ```load()```
@@ -28,10 +29,7 @@ Actor is responsible for resetting the Envy after reaching terminal state, e.g. 
 
 ##### Reward
 
-```Actor``` trains itself (policy) using ```Envy``` observation data.
-Reward returned by the ```Envy``` should be used as a part of observation and probably
-not treated as a direct reward signal used to train Actor policy.
-```Actor``` should use any additional information from observation to adjust or set
-its own value of reward used while training.
-He may apply discount, factor, normalization, moving average etc.
-to reward returned by ```Envy``` or even define it from scratch.
+The ```Actor``` trains itself (its policy) using ```Envy``` observation data.
+The reward returned by the ```Envy``` should be used as part of the observation and probably not treated as a direct reward signal used to train the Actor's policy.
+The ```Actor``` should use any additional information from the observation to adjust or set its own value of reward used during training.
+It may apply a discount, factor, normalization, moving average, etc., to the reward returned by the ```Envy``` or even define it from scratch.
